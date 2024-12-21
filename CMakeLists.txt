@@ -4,6 +4,12 @@ project(aio)
 cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
 
+# Apply AddressSanitizer options only in Debug mode
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    add_compile_options(-fsanitize=address -g)
+    add_link_options(-fsanitize=address)
+endif ()
+
 #if (DEFINED ENV{VCPKG_ROOT})
 #    set(VCPKG_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
 #    if (NOT EXISTS ${VCPKG_TOOLCHAIN_FILE})

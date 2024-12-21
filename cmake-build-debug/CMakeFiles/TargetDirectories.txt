@@ -1,5 +1,5 @@
-/home/ynachi/codes/aio/cmake-build-debug/CMakeFiles/io_uring_ctx.dir
-/home/ynachi/codes/aio/cmake-build-debug/CMakeFiles/tcp_server.dir
-/home/ynachi/codes/aio/cmake-build-debug/CMakeFiles/main.dir
-/home/ynachi/codes/aio/cmake-build-debug/CMakeFiles/edit_cache.dir
-/home/ynachi/codes/aio/cmake-build-debug/CMakeFiles/rebuild_cache.dir
+/home/ulozaka/codes/aio/cmake-build-debug/CMakeFiles/io_uring_ctx.dir
+/home/ulozaka/codes/aio/cmake-build-debug/CMakeFiles/tcp_server.dir
+/home/ulozaka/codes/aio/cmake-build-debug/CMakeFiles/main.dir
+/home/ulozaka/codes/aio/cmake-build-debug/CMakeFiles/edit_cache.dir
+/home/ulozaka/codes/aio/cmake-build-debug/CMakeFiles/rebuild_cache.dir

@@ -7,6 +7,43 @@
 #include <utility>
 #include <netinet/in.h>
 
+async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
+{
+    try {
+        char buffer[1024];
+
+        while (true) {
+            int bytes_read = co_await context.async_read(client_fd, std::span(buffer), 0);
+            if (bytes_read < 0) {
+                std::cerr << "Error reading from client: " << client_fd << "\n";
+                break;
+            }
+
+            if (bytes_read == 0) {
+                // Client disconnected
+                //std::cout << "Client disconnected: " << client_fd << "\n";
+                break;
+            }
+
+            //std::cout << "Client sent: " << bytes_read << "\n";
+
+            //std::string msg{"HELLO OLLA"};
+            int bytes_written =
+                    co_await context.async_write(client_fd, std::span(buffer), 0);
+            if (bytes_written < 0) {
+                std::cerr << "Error writing to client: " << client_fd << "\n";
+                break;
+            }
+            //std::cout << "Client received: " << bytes_written << "\n";
+        }
+    } catch (const std::exception &e) {
+        std::cerr << "Exception handling client: " << e.what() << "\n";
+    }
+
+    // Properly close the client socket
+    close(client_fd);
+}
+
 void set_reusable_socket(const int fd) {
     int option = 1;
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0) {
@@ -63,8 +100,12 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections() {
             throw std::system_error(errno, std::system_category(), "accept failed");
         }
         // process client here
+        spdlog::debug("got a new connection fd = {}", client_fd);
+        handle_client(client_fd, io_uring_ctx).start([](auto &&){});
     }
 }
+
+
 
 void TcpServer::run() {
     async_accept_connections().start([](auto &&) {

@@ -1,3 +1,0 @@
-ninja_dyndep_version = 1.0
-build CMakeFiles/tcp_server.dir/server/tcp_server.cpp.o: dyndep
-

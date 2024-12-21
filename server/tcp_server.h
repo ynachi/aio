@@ -9,7 +9,7 @@
 class TcpServer {
     int server_fd{0};
     IoUringContext io_uring_ctx;
-    bool running_{false};
+    bool running_{true};
     std::string ip_address_;
     uint16_t port_{0};
 
