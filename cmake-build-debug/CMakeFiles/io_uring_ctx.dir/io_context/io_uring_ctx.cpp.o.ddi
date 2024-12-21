@@ -1,0 +1,11 @@
+{
+"rules": [
+{
+"primary-output": "CMakeFiles/io_uring_ctx.dir/io_context/io_uring_ctx.cpp.o",
+"requires": [
+]
+}
+],
+"version": 0,
+"revision": 0
+}
