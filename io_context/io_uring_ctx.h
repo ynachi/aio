@@ -29,6 +29,11 @@ class IoUringContext {
         async_simple::Promise<int> promise;
     };
 
+    io_uring_cqe* get_cqe_wait();
+    std::pair<size_t, io_uring_cqe *> get_batch_cqes(size_t max_cqe_number) noexcept;
+    void handle_cqe(io_uring_cqe *cqe);
+    std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(size_t batch_size);
+
 public:
     IoUringContext() {
         if (const int ret = io_uring_queue_init(QUEUE_DEPTH, &uring_, 0); ret < 0) {
@@ -77,7 +82,9 @@ public:
      * - Throws `std::system_error` if `io_uring_submit` fails, providing
      *   the error code and message.
      */
-    void issue_submissions();
+    void submit_sqs();
+
+    void submit_sqs_wait();
 
     /**
      * Processes completed IO operations in the io_uring instance.
@@ -100,6 +107,12 @@ public:
      * - In case no completions are available, no further action is taken.
      */
     void process_completions();
+
+    // like process_completions but waits for completions to be available
+    void process_completions_wait();
+
+    // like process_completions but waits for completions to be available and process a batch of completions
+    void process_completions_wait(size_t batch_size);
 
     /**
      * Asynchronously accepts a new connection on a server socket.

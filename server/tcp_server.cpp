@@ -115,13 +115,7 @@ void TcpServer::run() {
     });
 
     while (running_) {
-        // @TODO: let process_completions be loop
-        // then use io_uring own macanism to wait for completions
-        // This way, we can avoid busy-waiting
-        io_uring_ctx.process_completions();
-        // Sleep for a short duration to avoid busy-waiting
-        // @TODO: remove me after implementing the above
-        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        io_uring_ctx.process_completions_wait();
     }
 }
 

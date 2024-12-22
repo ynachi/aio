@@ -6,6 +6,7 @@
 #include "liburing/io_uring.h"
 #include "async_simple/coro/Lazy.h"
 #include "async_simple/Promise.h"
+#include <cassert>
 
 async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, sockaddr *addr, socklen_t *addrlen) {
     Operation op{};
@@ -33,7 +34,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::sp
     co_return co_await op.promise.getFuture();
 }
 
-void IoUringContext::issue_submissions() {
+void IoUringContext::submit_sqs() {
         const int ret = io_uring_submit(&uring_);
         if (ret < 0) {
             spdlog::error("failed to submit io requests: {}", strerror(-ret));
@@ -42,9 +43,19 @@ void IoUringContext::issue_submissions() {
         spdlog::debug("submitted {} io requests", ret);
 }
 
+void IoUringContext::submit_sqs_wait() {
+    const int ret = io_uring_submit_and_wait(&uring_, 1);
+    if (ret < 0) {
+        spdlog::error("failed to submit io requests: {}", strerror(-ret));
+        // @TODO not sure we want to thow here, lets check which kind of error we can get before
+        throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
+    }
+    spdlog::debug("submitted {} io requests", ret);
+}
+
 void IoUringContext::process_completions() {
     // submit pending io requests first
-    issue_submissions();
+    submit_sqs();
     io_uring_cqe *cqe;
     while (io_uring_peek_cqe(&uring_, &cqe) == 0) {
         auto *op = reinterpret_cast<Operation *>(cqe->user_data);
@@ -52,8 +63,51 @@ void IoUringContext::process_completions() {
         op->promise.setValue(cqe->res);
         io_uring_cqe_seen(&uring_, cqe);
     }
-    //spdlog::debug("no more completions {} waiting", strerror(-errno));
-    // maybe lets wait for completion here
-    //io_uring_submit_and_wait_timeout(&uring_)
-    // check if cpu usage is huge before making premature optimization
+}
+
+void IoUringContext::process_completions_wait() {
+    // submit pending io requests first
+    submit_sqs_wait();
+    io_uring_cqe *cqe;
+    while (io_uring_peek_cqe(&uring_, &cqe) == 0) {
+        handle_cqe(cqe);
+    }
+}
+
+// gets a CQE blocking
+io_uring_cqe* IoUringContext::get_cqe_wait() {
+    io_uring_cqe *cqe = nullptr;
+    if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0) {
+        spdlog::error("failed to wait for completions: {}", strerror(-ret));
+        throw std::system_error(-ret, std::system_category(), "io_uring_wait_cqes failed");
+    }
+    return cqe;
+}
+
+std::pair<size_t, io_uring_cqe *> IoUringContext::get_batch_cqes(const size_t batch_size) noexcept {
+    io_uring_cqe *completion = nullptr;
+    auto ready_cqes = io_uring_peek_batch_cqe(&uring_, &completion, batch_size);
+    return {ready_cqes, completion};
+}
+
+std::pair<size_t, io_uring_cqe *> IoUringContext::get_batch_cqes_or_wait(const size_t batch_size) {
+    if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0) {
+        return {num, cqes};
+    }
+    // Fallback to blocking
+    return {1, get_cqe_wait()};
+}
+
+void IoUringContext::handle_cqe(io_uring_cqe *cqe) {
+    auto *op = reinterpret_cast<Operation *>(cqe->user_data);
+    op->completed = true;
+    op->promise.setValue(cqe->res);
+    io_uring_cqe_seen(&uring_, cqe);
+}
+
+void IoUringContext::process_completions_wait(size_t batch_size){
+    auto [num, cqes] = get_batch_cqes_or_wait(batch_size);
+    for (size_t i = 0; i < num; ++i) {
+        handle_cqe(&cqes[i]);
+    }
 }
