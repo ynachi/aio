@@ -59,7 +59,6 @@ void IoUringContext::process_completions() {
     io_uring_cqe *cqe;
     while (io_uring_peek_cqe(&uring_, &cqe) == 0) {
         auto *op = reinterpret_cast<Operation *>(cqe->user_data);
-        op->completed = true;
         op->promise.setValue(cqe->res);
         io_uring_cqe_seen(&uring_, cqe);
     }
@@ -100,7 +99,6 @@ std::pair<size_t, io_uring_cqe *> IoUringContext::get_batch_cqes_or_wait(const s
 
 void IoUringContext::handle_cqe(io_uring_cqe *cqe) {
     auto *op = reinterpret_cast<Operation *>(cqe->user_data);
-    op->completed = true;
     op->promise.setValue(cqe->res);
     io_uring_cqe_seen(&uring_, cqe);
 }
@@ -120,7 +118,6 @@ void IoUringContext::process_completions_wait(const size_t batch_size) {
     // Process all completions in the batch
     for (unsigned i = 0; i < count; i++) {
         auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
-        op->completed = true;
         op->promise.setValue(cqes[i]->res);
     }
 

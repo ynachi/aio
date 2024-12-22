@@ -22,8 +22,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
 
             if (bytes_read == 0) {
                 // Client disconnected
-                //std::cout << "Client disconnected: " << client_fd << "\n";
-                //spdlog::info("client disconnected: {}", client_fd);
+                spdlog::debug("client disconnected: {}", client_fd);
                 break;
             }
 
@@ -78,7 +77,7 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port): ip_address_(s
     }
     spdlog::debug("bound socket to {}:{}", ip_address, port);
 
-    if (listen(server_fd, IoUringContext::get_queue_depth()) < 0) {
+    if (listen(server_fd, static_cast<int>(io_uring_ctx.get_queue_depth())) < 0) {
         spdlog::error("failed to listen on socket: {}", strerror(-errno));
         throw std::system_error(errno, std::system_category(), "listen failed");
     }

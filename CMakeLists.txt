@@ -33,7 +33,7 @@ find_package(fmt CONFIG REQUIRED)
 # Check for liburing
 pkg_check_modules(LIBURING REQUIRED liburing)
 
-include_directories(${CMAKE_SOURCE_DIR}/io_context ${CMAKE_SOURCE_DIR}/server)
+include_directories(${CMAKE_SOURCE_DIR}/io_context ${CMAKE_SOURCE_DIR}/demo/server)
 
 # Set include directories and library paths from pkg-config
 include_directories(${LIBURING_INCLUDE_DIRS})
@@ -43,11 +43,11 @@ add_definitions(${LIBURING_CFLAGS_OTHER})
 add_library(io_uring_ctx io_context/io_uring_ctx.h io_context/io_uring_ctx.cpp)
 target_link_libraries(io_uring_ctx PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple fmt::fmt spdlog::spdlog)
 
-add_library(tcp_server server/tcp_server.h server/tcp_server.cpp)
+add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)
 target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple)
 
 add_executable(main main.cpp)
-target_link_libraries(main PRIVATE tcp_server io_uring_ctx async_simple::async_simple fmt::fmt)
+target_link_libraries(main PRIVATE tcp_server io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
 
 #target_link_libraries(HelloWorld PRIVATE ${LIBURING_LIBRARIES} fmt::fmt)
 

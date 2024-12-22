@@ -2,8 +2,8 @@
 // Created by ynachi on 12/21/24.
 //
 #include <iostream>
-
-#include "tcp_server.h"
+#include <spdlog/spdlog.h>
+#include "demos/server/tcp_server.h"
 
 int main() {
     spdlog::set_level(spdlog::level::info);

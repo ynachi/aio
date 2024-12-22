@@ -15,17 +15,16 @@
 // processed completion
 // accepted clients
 // active clients
+// read bytes
+// written bytes
 
 class IoUringContext {
     io_uring uring_{};
     bool is_running = true;
-    static constexpr int QUEUE_DEPTH = 2048;
-    static constexpr size_t BUFFER_SIZE = 4096;
+    size_t queue_size_ = 128;
     static constexpr int DEFAULT_IO_FLAGS = 0;
 
     struct Operation {
-        io_uring_sqe *sqe;
-        bool completed{false};
         async_simple::Promise<int> promise;
     };
 
@@ -36,7 +35,7 @@ class IoUringContext {
 
 public:
     IoUringContext() {
-        if (const int ret = io_uring_queue_init(QUEUE_DEPTH, &uring_, 0); ret < 0) {
+        if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
             spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
         }
@@ -58,8 +57,8 @@ public:
         return io_uring_get_sqe(&uring_);
     }
 
-    static int get_queue_depth() {
-        return QUEUE_DEPTH;
+    [[nodiscard]] size_t get_queue_depth() const {
+        return queue_size_;
     }
 
     void stop() {
