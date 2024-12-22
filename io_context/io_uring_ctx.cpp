@@ -105,9 +105,27 @@ void IoUringContext::handle_cqe(io_uring_cqe *cqe) {
     io_uring_cqe_seen(&uring_, cqe);
 }
 
-void IoUringContext::process_completions_wait(size_t batch_size){
-    auto [num, cqes] = get_batch_cqes_or_wait(batch_size);
-    for (size_t i = 0; i < num; ++i) {
-        handle_cqe(&cqes[i]);
+void IoUringContext::process_completions_wait(const size_t batch_size) {
+    // Wait for at least one completion and submit pending ops
+    if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0) {
+        spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
+        return;
+    }
+
+    io_uring_cqe *cqes[batch_size];  // Process up to 32 completions at once
+
+    // Get a batch of completions
+    const auto count = io_uring_peek_batch_cqe(&uring_, cqes, batch_size);
+
+    // Process all completions in the batch
+    for (unsigned i = 0; i < count; i++) {
+        auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
+        op->completed = true;
+        op->promise.setValue(cqes[i]->res);
+    }
+
+    // Mark the entire batch as seen
+    if (count > 0) {
+        io_uring_cq_advance(&uring_, count);
     }
 }
