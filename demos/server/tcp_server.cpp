@@ -55,7 +55,7 @@ void set_reusable_socket(const int fd) {
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port): ip_address_(std::move(ip_address)), port_(port) {
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size): ip_address_(std::move(ip_address)), port_(port), io_uring_ctx(conn_queue_size) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         spdlog::error("failed to create socket: {}", strerror(-errno));
@@ -114,7 +114,7 @@ void TcpServer::run() {
     });
 
     while (running_) {
-        io_uring_ctx.process_completions_wait();
+        io_uring_ctx.process_completions_wait(2048);
     }
 }
 

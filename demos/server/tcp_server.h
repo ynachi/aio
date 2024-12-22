@@ -14,7 +14,7 @@ class TcpServer {
     uint16_t port_{0};
 
 public:
-    TcpServer(std::string ip_address, uint16_t port);
+    TcpServer(std::string ip_address, uint16_t port, size_t conn_queue_size);
 
     ~TcpServer();
 

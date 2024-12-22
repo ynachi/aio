@@ -9,8 +9,13 @@
 #include <cassert>
 
 async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, sockaddr *addr, socklen_t *addrlen) {
+    assert(server_fd >= 0 && "Invalid file descriptor");
     Operation op{};
     io_uring_sqe *sqe = get_sqe();
+    if (!sqe) {
+        spdlog::error("Submission queue full in async_accept");
+        co_return -EAGAIN;
+    }
     io_uring_prep_accept(sqe, server_fd, addr, addrlen, 0);
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
@@ -18,8 +23,13 @@ async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, 
 
 async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, std::span<char> buf, const int offset)
 {
+    assert(client_fd >= 0 && "Invalid file descriptor");
     Operation op{};
     io_uring_sqe *sqe = get_sqe();
+    if (!sqe) {
+        spdlog::error("Submission queue full in async_read");
+        co_return -EAGAIN;
+    }
     io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset);
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
@@ -27,8 +37,14 @@ async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, st
 
 async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::span<const char> buf, const int offset)
 {
+    assert(client_fd >= 0 && "Invalid file descriptor");
+    assert(!buf.empty() && "Buffer is empty");
     Operation op{};
     io_uring_sqe *sqe = get_sqe();
+    if (!sqe) {
+        spdlog::error("Submission queue full in async_write");
+        co_return -EAGAIN;
+    }
     io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset);
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
@@ -110,7 +126,7 @@ void IoUringContext::process_completions_wait(const size_t batch_size) {
         return;
     }
 
-    io_uring_cqe *cqes[batch_size];  // Process up to 32 completions at once
+    io_uring_cqe *cqes[batch_size];
 
     // Get a batch of completions
     const auto count = io_uring_peek_batch_cqe(&uring_, cqes, batch_size);
