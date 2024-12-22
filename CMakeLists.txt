@@ -20,6 +20,8 @@ endif ()
 #    message(FATAL_ERROR "VCPKG_ROOT environment variable is not defined. Please set it to your vcpkg installation path.")
 #endif ()
 
+# python
+find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(async_simple CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)

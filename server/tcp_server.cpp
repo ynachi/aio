@@ -15,6 +15,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
         while (true) {
             int bytes_read = co_await context.async_read(client_fd, std::span(buffer), 0);
             if (bytes_read < 0) {
+                spdlog::error("error reading from client: {} msg {}", client_fd, strerror(-errno));
                 std::cerr << "Error reading from client: " << client_fd << "\n";
                 break;
             }
@@ -22,6 +23,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
             if (bytes_read == 0) {
                 // Client disconnected
                 //std::cout << "Client disconnected: " << client_fd << "\n";
+                //spdlog::info("client disconnected: {}", client_fd);
                 break;
             }
 
@@ -31,6 +33,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
             int bytes_written =
                     co_await context.async_write(client_fd, std::span(buffer), 0);
             if (bytes_written < 0) {
+                spdlog::error("error writing to client: {} msg {}", client_fd, strerror(-errno));
                 std::cerr << "Error writing to client: " << client_fd << "\n";
                 break;
             }
@@ -118,7 +121,7 @@ void TcpServer::run() {
         io_uring_ctx.process_completions();
         // Sleep for a short duration to avoid busy-waiting
         // @TODO: remove me after implementing the above
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 }
 
