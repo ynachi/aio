@@ -34,7 +34,7 @@ class IoUringContext {
     std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(size_t batch_size);
 
 public:
-    IoUringContext() {
+    explicit IoUringContext(const size_t queue_size = 128) : queue_size_(queue_size) {
         if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
             spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
@@ -141,8 +141,8 @@ public:
      */
     async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen);
 
-    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, int flags);
+    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, int offset = 0);
 
-    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, int flags);
+    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, int offset = 0);
 };
 #endif //IO_URING_CTX_H

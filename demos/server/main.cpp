@@ -3,7 +3,7 @@
 //
 #include <iostream>
 #include <spdlog/spdlog.h>
-#include "demos/server/tcp_server.h"
+#include "tcp_server.h"
 
 int main() {
     spdlog::set_level(spdlog::level::info);

@@ -30,7 +30,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
 
             //std::string msg{"HELLO OLLA"};
             int bytes_written =
-                    co_await context.async_write(client_fd, std::span(buffer), 0);
+                    co_await context.async_write(client_fd, std::span(buffer, bytes_read), 0);
             if (bytes_written < 0) {
                 spdlog::error("error writing to client: {} msg {}", client_fd, strerror(-errno));
                 std::cerr << "Error writing to client: " << client_fd << "\n";

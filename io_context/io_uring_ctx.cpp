@@ -16,20 +16,20 @@ async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, 
     co_return co_await op.promise.getFuture();
 }
 
-async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, std::span<char> buf, const int flags)
+async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, std::span<char> buf, const int offset)
 {
     Operation op{};
     io_uring_sqe *sqe = get_sqe();
-    io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), flags);
+    io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset);
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
 
-async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::span<const char> buf, int flags)
+async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::span<const char> buf, const int offset)
 {
     Operation op{};
     io_uring_sqe *sqe = get_sqe();
-    io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), flags);
+    io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset);
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }

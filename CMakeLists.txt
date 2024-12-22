@@ -46,8 +46,11 @@ target_link_libraries(io_uring_ctx PRIVATE ${LIBURING_LIBRARIES} async_simple::a
 add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)
 target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple)
 
-add_executable(main main.cpp)
-target_link_libraries(main PRIVATE tcp_server io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
+add_executable(tcp_demo demos/server/main.cpp)
+target_link_libraries(tcp_demo PRIVATE tcp_server io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
+
+add_executable(char_count_demo demos/char_count.cpp)
+target_link_libraries(char_count_demo PRIVATE io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
 
 #target_link_libraries(HelloWorld PRIVATE ${LIBURING_LIBRARIES} fmt::fmt)
 
