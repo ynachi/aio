@@ -41,16 +41,17 @@ link_directories(${LIBURING_LIBRARY_DIRS})
 add_definitions(${LIBURING_CFLAGS_OTHER})
 
 add_library(io_uring_ctx io_context/io_uring_ctx.h io_context/io_uring_ctx.cpp)
-target_link_libraries(io_uring_ctx PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple fmt::fmt spdlog::spdlog)
+target_link_libraries(io_uring_ctx PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
 add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)
-target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple)
+target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
 
 add_executable(tcp_demo demos/server/main.cpp)
-target_link_libraries(tcp_demo PRIVATE tcp_server io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
+target_link_libraries(tcp_demo PRIVATE tcp_server io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
+set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
 add_executable(char_count_demo demos/char_count.cpp)
-target_link_libraries(char_count_demo PRIVATE io_uring_ctx async_simple::async_simple fmt::fmt spdlog::spdlog)
+target_link_libraries(char_count_demo PRIVATE io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
 #target_link_libraries(HelloWorld PRIVATE ${LIBURING_LIBRARIES} fmt::fmt)
 
