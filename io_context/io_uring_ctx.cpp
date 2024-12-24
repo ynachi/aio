@@ -8,6 +8,23 @@
 #include "async_simple/Promise.h"
 #include <cassert>
 
+IoUringContext::IoUringContext(const size_t queue_size, const size_t max_io_workers) : queue_size_(queue_size), max_io_threads(max_io_workers) {
+    if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
+        spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
+        throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
+    }
+
+    // Set max workers for io_uring
+    const unsigned int num_workers = max_io_workers <= 0 ? DEFAULT_IOWQ_MAX_WORKERS : max_io_workers;
+    unsigned int max_workers[2] = {num_workers, num_workers};
+    if (const int ret = io_uring_register_iowq_max_workers(&uring_, max_workers); ret < 0) {
+        spdlog::error("failed to set max workers: {}", strerror(-ret));
+        throw std::system_error(-ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
+    }
+
+    spdlog::info("successfully initialized io_uring");
+}
+
 async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, sockaddr *addr, socklen_t *addrlen) {
     assert(server_fd >= 0 && "Invalid file descriptor");
     Operation op{};
@@ -17,6 +34,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, 
         co_return -EAGAIN;
     }
     io_uring_prep_accept(sqe, server_fd, addr, addrlen, 0);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
@@ -31,6 +49,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, st
         co_return -EAGAIN;
     }
     io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
@@ -46,6 +65,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::sp
         co_return -EAGAIN;
     }
     io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
