@@ -16,7 +16,9 @@
 //     return 0;
 // }
 
-
+// @TODO: for io_uring ctx, no need for explicit threading in the code
+// This can be achieved by using io_uring APIs settings.
+// Explore the doc https://blog.cloudflare.com/missing-manuals-io_uring-worker-pool/ and adjust the code accordingly
 int main(int argc, char *argv[])
 {
     if (argc != 5) {

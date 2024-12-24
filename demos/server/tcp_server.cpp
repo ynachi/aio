@@ -44,7 +44,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
     close(client_fd);
 }
 
-void set_reusable_socket(const int fd) {
+void set_fd_server_options(const int fd) {
     int option = 1;
 
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) < 0) {
@@ -69,7 +69,7 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_qu
     spdlog::debug("created socket {}", server_fd);
 
     // set reusable socket
-    set_reusable_socket(server_fd);
+    set_fd_server_options(server_fd);
 
     sockaddr_in addr{};
     addr.sin_family = AF_INET;
