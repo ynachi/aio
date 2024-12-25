@@ -26,10 +26,6 @@ public:
 
     async_simple::coro::Lazy<> async_accept_connections();
 
-    static void worker(std::string host, uint16_t port, size_t queue_depth, std::stop_token stop_token);
-
-    static void run_multi_threaded(std::string host, uint16_t port, int queue_depth, size_t num_threads, std::stop_source &stop_source);
-
     void run();
 
     void stop();
