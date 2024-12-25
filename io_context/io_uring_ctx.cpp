@@ -17,6 +17,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, 
         co_return -EAGAIN;
     }
     io_uring_prep_accept(sqe, server_fd, addr, addrlen, 0);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
@@ -31,6 +32,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_read(const int client_fd, st
         co_return -EAGAIN;
     }
     io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
@@ -46,6 +48,7 @@ async_simple::coro::Lazy<int> IoUringContext::async_write(int client_fd, std::sp
         co_return -EAGAIN;
     }
     io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset);
+    sqe->flags |= IOSQE_ASYNC;
     sqe->user_data = reinterpret_cast<uint64_t>(&op);
     co_return co_await op.promise.getFuture();
 }
