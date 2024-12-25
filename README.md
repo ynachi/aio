@@ -6,8 +6,8 @@ The library supports files operations and network sockets. We use alibaba async_
 machinery.  
 
 This minimal version has been demoed with a simple echo server and a simple file read program.
-1. [echo server](./demo/echo_server.cpp)
-2. [file read](./demo/file_read.cpp)
+1. [echo server](./demo/server)
+2. [file read](./demo/char_count.cpp)
 
 
 Bemchmarks:  
