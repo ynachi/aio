@@ -22,9 +22,10 @@ class IoUringContext {
     io_uring uring_{};
     bool is_running = true;
     size_t queue_size_ = 128;
+    // max number of io workers, please refer to the io_uring documentation for more details
     size_t max_io_threads;
     static constexpr int DEFAULT_IO_FLAGS = 0;
-    static constexpr size_t DEFAULT_IOWQ_MAX_WORKERS = std::jthread::hardware_concurrency() - 2;
+    static  constexpr size_t DEFAULT_IOWQ_MAX_WORKERS = 1;
 
     struct Operation {
         async_simple::Promise<int> promise;
@@ -36,7 +37,7 @@ class IoUringContext {
     std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(size_t batch_size);
 
 public:
-    explicit IoUringContext(size_t queue_size = 128, size_t max_io_workers);
+    explicit IoUringContext(size_t max_io_workers, size_t queue_size);
 
     ~IoUringContext() {
         io_uring_queue_exit(&uring_);

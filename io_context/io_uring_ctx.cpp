@@ -15,6 +15,7 @@ IoUringContext::IoUringContext(const size_t queue_size, const size_t max_io_work
     }
 
     // Set max workers for io_uring
+    // In case of invalid number of workers, use the default value, which is 1.
     const unsigned int num_workers = max_io_workers <= 0 ? DEFAULT_IOWQ_MAX_WORKERS : max_io_workers;
     unsigned int max_workers[2] = {num_workers, num_workers};
     if (const int ret = io_uring_register_iowq_max_workers(&uring_, max_workers); ret < 0) {
@@ -141,10 +142,12 @@ void IoUringContext::handle_cqe(io_uring_cqe *cqe) {
 
 void IoUringContext::process_completions_wait(const size_t batch_size) {
     // Wait for at least one completion and submit pending ops
-    if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0) {
+    const int ret = io_uring_submit_and_wait(&uring_, 1);
+    if (ret < 0) {
         spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
         return;
     }
+    spdlog::debug("submitted {} io requests during ring submission operation", ret);
 
     io_uring_cqe *cqes[batch_size];
 

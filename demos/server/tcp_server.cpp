@@ -60,7 +60,9 @@ void set_fd_server_options(const int fd) {
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size): io_uring_ctx(conn_queue_size), ip_address_(std::move(ip_address)), port_(port) {
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size, size_t max_io_workers):
+    io_uring_ctx(max_io_workers, conn_queue_size), ip_address_(std::move(ip_address)), port_(port)
+{
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         spdlog::error("failed to create socket: {}", strerror(-errno));
@@ -109,34 +111,6 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections() {
         // process client here
         spdlog::debug("got a new connection fd = {}", client_fd);
         handle_client(client_fd, io_uring_ctx).start([](auto &&){});
-    }
-}
-
-void TcpServer::worker(std::string host, const uint16_t port, const size_t queue_depth, std::stop_token stop_token) {
-    //@todo pass stop_token to server.run
-    try {
-        TcpServer server(std::move(host), port, queue_depth);
-        server.run();
-    } catch (const std::exception &ex) {
-        spdlog::error("worker thread error: {}", ex.what());
-        std::abort();
-    }
-}
-
-void TcpServer::run_multi_threaded(std::string host, uint16_t port, int queue_depth, size_t num_threads, std::stop_source &stop_source) {
-    std::vector<std::jthread> threads;
-    threads.reserve(num_threads);
-
-    for (int i = 0; i < num_threads; ++i) {
-        threads.emplace_back(worker, std::move(host), port, queue_depth, stop_source.get_token());
-
-        if (num_threads <= std::jthread::hardware_concurrency())
-        {
-            cpu_set_t cpuset;
-            CPU_ZERO(&cpuset);
-            CPU_SET(i, &cpuset);
-            pthread_setaffinity_np(threads[i].native_handle(), sizeof(cpu_set_t), &cpuset);
-        }
     }
 }
 
