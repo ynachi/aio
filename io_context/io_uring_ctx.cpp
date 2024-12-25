@@ -8,11 +8,19 @@
 #include "async_simple/Promise.h"
 #include <cassert>
 
-IoUringContext::IoUringContext(const size_t queue_size) : queue_size_(queue_size) {
+IoUringContext::IoUringContext(const size_t queue_size, size_t io_threads) : queue_size_(queue_size), io_threads_(io_threads) {
+    assert(io_threads_ > 0 && "Invalid number of io threads");
     if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
         spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
         throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
     }
+
+    unsigned int max_workers[2] = {static_cast<unsigned int>(io_threads_), static_cast<unsigned int>(io_threads_)};
+    if (const int ret = io_uring_register_iowq_max_workers(&uring_, max_workers); ret < 0) {
+        spdlog::error("failed to set max workers: {}", strerror(-ret));
+        throw std::system_error(-ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
+    }
+
     spdlog::info("successfully initialized io_uring");
 };
 

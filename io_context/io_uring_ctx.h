@@ -23,6 +23,8 @@ class IoUringContext {
     bool is_running = true;
     size_t queue_size_ = 128;
     static constexpr int DEFAULT_IO_FLAGS = 0;
+    // io_uring_register_iowq_max_workers for both bounded and unbounded queues
+    size_t io_threads_{1};
 
     struct Operation {
         async_simple::Promise<int> promise;
@@ -34,7 +36,7 @@ class IoUringContext {
     std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(size_t batch_size);
 
 public:
-    explicit IoUringContext(size_t queue_size = 128);
+    IoUringContext(size_t queue_size, size_t io_threads_);
 
     ~IoUringContext() {
         io_uring_queue_exit(&uring_);
