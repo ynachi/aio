@@ -34,25 +34,7 @@ class IoUringContext {
     std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(size_t batch_size);
 
 public:
-    explicit IoUringContext(const size_t queue_size = 128) : queue_size_(queue_size) {
-        /**
-        // Setup io_uring with SQPOLL enabled
-        struct io_uring_params params = {};
-        params.flags = IORING_SETUP_SQPOLL;  // Enable kernel polling
-        params.sq_thread_idle = 2000;        // Idle timeout in milliseconds
-
-        // Setup ring with polling enabled
-        if (io_uring_queue_init_params(QUEUE_DEPTH, &ring, &params) < 0) {
-            throw std::runtime_error("Failed to initialize io_uring with SQPOLL");
-        }
-         **/
-
-        if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
-            spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
-            throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
-        }
-        spdlog::info("successfully initialized io_uring");
-    };
+    explicit IoUringContext(size_t queue_size = 128);
 
     ~IoUringContext() {
         io_uring_queue_exit(&uring_);

@@ -8,6 +8,14 @@
 #include "async_simple/Promise.h"
 #include <cassert>
 
+IoUringContext::IoUringContext(const size_t queue_size) : queue_size_(queue_size) {
+    if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
+        spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
+        throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
+    }
+    spdlog::info("successfully initialized io_uring");
+};
+
 async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, sockaddr *addr, socklen_t *addrlen) {
     assert(server_fd >= 0 && "Invalid file descriptor");
     Operation op{};
