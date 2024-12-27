@@ -122,3 +122,32 @@ void TcpServer::run() {
         io_uring_ctx.process_completions_wait(2048);
     }
 }
+
+
+void TcpServer::worker(std::string host, const uint16_t port, const size_t conn_queue_size, const size_t max_io_workers) {
+    //@todo pass stop_token to server.run
+    try {
+        TcpServer server(host, port, conn_queue_size, max_io_workers);
+        server.run();
+    } catch (const std::exception &ex) {
+        spdlog::error("worker thread error: {}", ex.what());
+        std::abort();
+    }
+}
+
+void TcpServer::run_multi_threaded(std::string host, uint16_t port, size_t num_threads, const size_t conn_queue_size, const size_t max_io_workers) {
+    std::vector<std::jthread> threads;
+    threads.reserve(num_threads);
+
+    for (int i = 0; i < num_threads; ++i) {
+        threads.emplace_back(worker, host, port, conn_queue_size, max_io_workers);
+
+        if (num_threads <= std::jthread::hardware_concurrency())
+        {
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i, &cpuset);
+            pthread_setaffinity_np(threads[i].native_handle(), sizeof(cpu_set_t), &cpuset);
+        }
+    }
+}
