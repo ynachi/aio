@@ -104,3 +104,5 @@ Testing
 .idea/workspace.xml
 
 /home/ulozaka/codes/aio/tests/file.txt"
+
+compile_commands.json
