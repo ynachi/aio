@@ -13,10 +13,10 @@ if (CMAKE_EXPORT_COMPILE_COMMANDS)
     )
 endif()
 
-# Apply AddressSanitizer options only in Debug mode
+# Apply AddressSanitizer and Integer Overflow options only in Debug mode
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-fsanitize=address -g)
-    add_link_options(-fsanitize=address)
+    add_compile_options(-fsanitize=address,undefined -g) # Includes AddressSanitizer and Undefined Behavior Sanitizer
+    add_link_options(-fsanitize=address,undefined)
 endif ()
 
 #if (DEFINED ENV{VCPKG_ROOT})

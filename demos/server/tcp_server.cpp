@@ -61,7 +61,7 @@ void set_fd_server_options(const int fd) {
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size, size_t io_threads): io_uring_ctx(conn_queue_size, io_threads), ip_address_(std::move(ip_address)), port_(port) {
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t io_queue_depth, size_t io_threads): io_uring_ctx(io_queue_depth, io_threads), ip_address_(std::move(ip_address)), port_(port) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         spdlog::error("failed to create socket: {}", strerror(-errno));

@@ -315,22 +315,22 @@ public:
         co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen);
     }
 
-    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, int offset = 0)
+    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset = 0)
     {
         co_return co_await prepare_operation(prep_read_wrapper, client_fd, buf.data(), buf.size(), offset);
     }
 
-    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, int offset = 0)
+    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, uint64_t offset = 0)
     {
         co_return co_await prepare_operation(prep_write_wrapper, client_fd, buf.data(), buf.size(), offset);
     }
 
-    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, int offset = 0)
+    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset = 0)
     {
         co_return co_await prepare_operation(prep_readv_wrapper, client_fd, iov, iovcnt, offset);
     }
 
-    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, int offset = 0)
+    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset = 0)
     {
         co_return co_await prepare_operation(prep_writev_wrapper, client_fd, iov, iovcnt, offset);
     }

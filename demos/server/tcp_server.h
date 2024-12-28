@@ -21,17 +21,17 @@ class TcpServer {
 
 public:
     /// io_threads are native io_uring threads. Do not confuse with server worker treads
-    TcpServer(std::string ip_address, uint16_t port, size_t conn_queue_size, size_t io_threads);
+    TcpServer(std::string ip_address, uint16_t port, size_t io_queue_depth, size_t io_threads);
 
     ~TcpServer();
 
     async_simple::coro::Lazy<> async_accept_connections();
 
     /// Using this method disable kernel thread
-    static void worker(std::string host, uint16_t port, size_t conn_queue_size);
+    static void worker(std::string host, uint16_t port, size_t queue_size);
 
     /// Using this method disable kernel thread
-    static void run_multi_threaded(std::string host, uint16_t port, size_t conn_queue_size, size_t worker_num);
+    static void run_multi_threaded(std::string host, uint16_t port, size_t io_queue_depth, size_t worker_num);
 
     void run();
 
