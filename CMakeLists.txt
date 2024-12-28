@@ -49,7 +49,7 @@ include_directories(${LIBURING_INCLUDE_DIRS})
 link_directories(${LIBURING_LIBRARY_DIRS})
 add_definitions(${LIBURING_CFLAGS_OTHER})
 
-add_library(io_uring_ctx io_context/io_uring_ctx.h io_context/io_uring_ctx.cpp)
+add_library(io_uring_ctx io_context/io_uring_ctx.h)
 target_link_libraries(io_uring_ctx PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
 add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)

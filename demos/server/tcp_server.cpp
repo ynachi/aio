@@ -8,7 +8,7 @@
 #include <netinet/in.h>
 #include <async_simple/coro/SyncAwait.h>
 
-async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
+async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext<false> &context)
 {
     try {
         char buffer[1024];
@@ -120,5 +120,34 @@ void TcpServer::run() {
 
     while (running_) {
         io_uring_ctx.process_completions_wait(2048);
+    }
+}
+
+
+void TcpServer::worker(std::string host, const uint16_t port, size_t conn_queue_size) {
+    //@todo pass stop_token to server.run
+    try {
+        TcpServer server(host, port, conn_queue_size, 0);
+        server.run();
+    } catch (const std::exception &ex) {
+        spdlog::error("worker thread error: {}", ex.what());
+        std::abort();
+    }
+}
+
+void TcpServer::run_multi_threaded(std::string host, uint16_t port, size_t conn_queue_size, size_t worker_num) {
+    std::vector<std::jthread> threads;
+    threads.reserve(worker_num);
+
+    for (int i = 0; i < worker_num; ++i) {
+        threads.emplace_back(worker, host, port, conn_queue_size);
+
+        if (worker_num <= std::jthread::hardware_concurrency())
+        {
+            cpu_set_t cpuset;
+            CPU_ZERO(&cpuset);
+            CPU_SET(i, &cpuset);
+            pthread_setaffinity_np(threads[i].native_handle(), sizeof(cpu_set_t), &cpuset);
+        }
     }
 }
