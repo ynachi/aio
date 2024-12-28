@@ -49,11 +49,9 @@ target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt:
 add_executable(tcp_demo demos/server/main.cpp)
 target_link_libraries(tcp_demo PRIVATE tcp_server io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
-set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++ -static")
 add_executable(char_count_demo demos/char_count.cpp)
 target_link_libraries(char_count_demo PRIVATE io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
-#target_link_libraries(HelloWorld PRIVATE ${LIBURING_LIBRARIES} fmt::fmt)
 
 #add_executable(follow follo.cpp)
 #target_link_libraries(follow PRIVATE Folly::folly Folly::folly_deps Folly::follybenchmark Folly::folly_test_util)

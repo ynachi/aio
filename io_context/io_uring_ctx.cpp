@@ -8,23 +8,21 @@
 #include "async_simple/Promise.h"
 #include <cassert>
 
-IoUringContext::IoUringContext(const size_t queue_size, const size_t max_io_workers) : queue_size_(queue_size), max_io_threads(max_io_workers) {
+IoUringContext::IoUringContext(const size_t queue_size, size_t io_threads) : queue_size_(queue_size), io_threads_(io_threads) {
+    assert(io_threads_ > 0 && "Invalid number of io threads");
     if (const int ret = io_uring_queue_init(queue_size_, &uring_, 0); ret < 0) {
         spdlog::error("failed to initialize io_uring: {}", strerror(-ret));
         throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
     }
 
-    // Set max workers for io_uring
-    // In case of invalid number of workers, use the default value, which is 1.
-    const unsigned int num_workers = max_io_workers <= 0 ? DEFAULT_IOWQ_MAX_WORKERS : max_io_workers;
-    unsigned int max_workers[2] = {num_workers, num_workers};
+    unsigned int max_workers[2] = {static_cast<unsigned int>(io_threads_), static_cast<unsigned int>(io_threads_)};
     if (const int ret = io_uring_register_iowq_max_workers(&uring_, max_workers); ret < 0) {
         spdlog::error("failed to set max workers: {}", strerror(-ret));
         throw std::system_error(-ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
     }
 
     spdlog::info("successfully initialized io_uring");
-}
+};
 
 async_simple::coro::Lazy<int> IoUringContext::async_accept(const int server_fd, sockaddr *addr, socklen_t *addrlen) {
     assert(server_fd >= 0 && "Invalid file descriptor");
@@ -142,12 +140,10 @@ void IoUringContext::handle_cqe(io_uring_cqe *cqe) {
 
 void IoUringContext::process_completions_wait(const size_t batch_size) {
     // Wait for at least one completion and submit pending ops
-    const int ret = io_uring_submit_and_wait(&uring_, 1);
-    if (ret < 0) {
+    if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0) {
         spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
         return;
     }
-    spdlog::debug("submitted {} io requests during ring submission operation", ret);
 
     io_uring_cqe *cqes[batch_size];
 

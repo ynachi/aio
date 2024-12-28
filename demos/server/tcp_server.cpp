@@ -6,6 +6,7 @@
 #include <spdlog/spdlog.h>
 #include <utility>
 #include <netinet/in.h>
+#include <async_simple/coro/SyncAwait.h>
 
 async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
 {
@@ -60,9 +61,7 @@ void set_fd_server_options(const int fd) {
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size, size_t max_io_workers):
-    io_uring_ctx(max_io_workers, conn_queue_size), ip_address_(std::move(ip_address)), port_(port)
-{
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_queue_size, size_t io_threads): io_uring_ctx(conn_queue_size, io_threads), ip_address_(std::move(ip_address)), port_(port) {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0) {
         spdlog::error("failed to create socket: {}", strerror(-errno));
@@ -88,6 +87,7 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t conn_qu
         spdlog::error("failed to listen on socket: {}", strerror(-errno));
         throw std::system_error(errno, std::system_category(), "listen failed");
     }
+
     spdlog::debug("listening on socket");
 }
 
