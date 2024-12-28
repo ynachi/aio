@@ -64,14 +64,34 @@ class IoUringContext {
         io_uring_prep_accept(sqe, fd, addr, addrlen, 0);
     }
 
-    static void prep_read_wrapper(io_uring_sqe* sqe, int fd, char* buf, size_t len, off_t offset)
+    static void prep_read_wrapper(io_uring_sqe* sqe, const int fd, char* buf, const size_t len, const off_t offset)
     {
         io_uring_prep_read(sqe, fd, buf, len, offset);
     }
 
-    static void prep_write_wrapper(io_uring_sqe* sqe, int fd, const char* buf, size_t len, off_t offset)
+    static void prep_write_wrapper(io_uring_sqe* sqe, const int fd, const char* buf, const size_t len, const off_t offset)
     {
         io_uring_prep_write(sqe, fd, buf, len, offset);
+    }
+
+    static void prep_readv_wrapper(io_uring_sqe* sqe, const int fd, const  iovec* iov, int iovcnt, const off_t offset)
+    {
+        io_uring_prep_readv(sqe, fd, iov, iovcnt, offset);
+    }
+
+    static void prep_writev_wrapper(io_uring_sqe* sqe, const int fd, const  iovec* iov, int iovcnt, const off_t offset)
+    {
+        io_uring_prep_writev(sqe, fd, iov, iovcnt, offset);
+    }
+
+    static void prep_connect_wrapper(io_uring_sqe* sqe, const int fd, const sockaddr* addr, const socklen_t addrlen)
+    {
+        io_uring_prep_connect(sqe, fd, addr, addrlen);
+    }
+
+    static void prep_close_wrapper(io_uring_sqe* sqe, const int fd)
+    {
+        io_uring_prep_close(sqe, fd);
     }
 
 
@@ -303,6 +323,26 @@ public:
     async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, int offset = 0)
     {
         co_return co_await prepare_operation(prep_write_wrapper, client_fd, buf.data(), buf.size(), offset);
+    }
+
+    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, int offset = 0)
+    {
+        co_return co_await prepare_operation(prep_readv_wrapper, client_fd, iov, iovcnt, offset);
+    }
+
+    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, int offset = 0)
+    {
+        co_return co_await prepare_operation(prep_writev_wrapper, client_fd, iov, iovcnt, offset);
+    }
+
+    async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen)
+    {
+        co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
+    }
+
+    async_simple::coro::Lazy<int> async_close(int fd)
+    {
+        co_return co_await prepare_operation(prep_close_wrapper, fd);
     }
 };
 
