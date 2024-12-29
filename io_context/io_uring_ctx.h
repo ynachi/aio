@@ -9,6 +9,7 @@
 #include <spdlog/spdlog.h>
 #include <async_simple/coro/Lazy.h>
 #include <async_simple/coro/FutureAwaiter.h>
+#include "io_context.h"
 
 //@TODO add some probe
 // pending submission
@@ -18,22 +19,6 @@
 // read bytes
 // written bytes
 
-
-class IoContextBase: public std::enable_shared_from_this<IoContextBase>
-{
-public:
-    virtual ~IoContextBase() = default;
-    std::shared_ptr<IoContextBase> get_shared() {
-        return shared_from_this();
-    }
-    virtual async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) = 0;
-    virtual async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset) = 0;
-    virtual async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, uint64_t offset) = 0;
-    virtual async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
-    virtual async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
-    virtual async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen) = 0;
-    virtual async_simple::coro::Lazy<int> async_close(int fd) = 0;
-};
 
 /// EnableSubmissionAsync allows to set IOSQE_ASYNC flag on SQEs. Setting these flag makes the kernel enqueues
 /// the io requests and spawn kernel threads to submit them asynchronously. This should normally not be set in you plan
