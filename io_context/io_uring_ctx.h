@@ -18,11 +18,28 @@
 // read bytes
 // written bytes
 
+
+class IoContextBase: public std::enable_shared_from_this<IoContextBase>
+{
+public:
+    virtual ~IoContextBase() = default;
+    std::shared_ptr<IoContextBase> get_shared() {
+        return shared_from_this();
+    }
+    virtual async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) = 0;
+    virtual async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset) = 0;
+    virtual async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, uint64_t offset) = 0;
+    virtual async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
+    virtual async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
+    virtual async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen) = 0;
+    virtual async_simple::coro::Lazy<int> async_close(int fd) = 0;
+};
+
 /// EnableSubmissionAsync allows to set IOSQE_ASYNC flag on SQEs. Setting these flag makes the kernel enqueues
 /// the io requests and spawn kernel threads to submit them asynchronously. This should normally not be set in you plan
 /// to manually scale the application.
 template <bool EnableSubmissionAsync>
-class IoUringContext {
+class IoUringContext: public IoContextBase {
     io_uring uring_{};
     bool is_running = true;
     size_t queue_size_ = 128;
@@ -132,8 +149,6 @@ public:
     IoUringContext(const size_t queue_size, const size_t io_threads)
         : queue_size_(queue_size), io_threads_(io_threads)
     {
-        assert(io_threads_ >= 0 && "Invalid number of io threads");
-
         const int ret = io_uring_queue_init(queue_size_, &uring_, 0);
         if (ret < 0) {
             spdlog::error("Failed to initialize io_uring: {}", strerror(-ret));
@@ -154,7 +169,7 @@ public:
         spdlog::info("Successfully initialized io_uring.");
     }
 
-    ~IoUringContext()
+    ~IoUringContext() override
     {
         io_uring_queue_exit(&uring_);
         spdlog::debug("io_uring exited");
@@ -284,6 +299,11 @@ public:
         }
     }
 
+    static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const size_t io_threads)
+    {
+        return std::make_shared<IoUringContext>(queue_size, io_threads);
+    }
+
     /**
      * Asynchronously accepts a new connection on a server socket.
      *
@@ -310,37 +330,37 @@ public:
      * @return A coroutine that resolves to the file descriptor of the newly accepted
      *         connection, or a negative value in case of failure.
      */
-    async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen)
+    async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) override
     {
         co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen);
     }
 
-    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset = 0)
+    async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_read_wrapper, client_fd, buf.data(), buf.size(), offset);
     }
 
-    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, uint64_t offset = 0)
+    async_simple::coro::Lazy<int> async_write(int client_fd, std::span<const char> buf, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_write_wrapper, client_fd, buf.data(), buf.size(), offset);
     }
 
-    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset = 0)
+    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_readv_wrapper, client_fd, iov, iovcnt, offset);
     }
 
-    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset = 0)
+    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_writev_wrapper, client_fd, iov, iovcnt, offset);
     }
 
-    async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen)
+    async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen) override
     {
         co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
     }
 
-    async_simple::coro::Lazy<int> async_close(int fd)
+    async_simple::coro::Lazy<int> async_close(int fd) override
     {
         co_return co_await prepare_operation(prep_close_wrapper, fd);
     }

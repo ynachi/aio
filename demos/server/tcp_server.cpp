@@ -117,7 +117,6 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections() {
 void TcpServer::run() {
     async_accept_connections().start([](auto &&) {
     });
-
     while (running_) {
         io_uring_ctx.process_completions_wait(2048);
     }
@@ -151,3 +150,5 @@ void TcpServer::run_multi_threaded(std::string host, uint16_t port, size_t conn_
         }
     }
 }
+
+
