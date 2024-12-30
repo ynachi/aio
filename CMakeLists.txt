@@ -53,14 +53,20 @@ add_library(io_context_lib io_context/io_uring_ctx.h io_context/io_context.h)
 # need to link fmt because of spdlog
 target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
+add_library(network_lib tcp_listener.cpp tcp_listener.h tcp_stream.h tcp_stream.cpp)
+target_link_libraries(network_lib PRIVATE io_context_lib ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
+
 add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)
-target_link_libraries(tcp_server PRIVATE io_uring_ctx ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
+target_link_libraries(tcp_server PRIVATE io_context_lib ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
 
 add_executable(tcp_demo demos/server/main.cpp)
-target_link_libraries(tcp_demo PRIVATE tcp_server io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
+target_link_libraries(tcp_demo PRIVATE tcp_server io_context_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
 add_executable(char_count_demo demos/char_count.cpp)
-target_link_libraries(char_count_demo PRIVATE io_uring_ctx async_simple::async_simple_static fmt::fmt spdlog::spdlog)
+target_link_libraries(char_count_demo PRIVATE io_context_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
+
+add_executable(srv201 srv.cpp)
+target_link_libraries(srv201 PRIVATE io_context_lib network_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
 
 #add_executable(follow follo.cpp)

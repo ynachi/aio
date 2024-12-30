@@ -20,7 +20,8 @@ public:
     virtual async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
     virtual async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) = 0;
     virtual async_simple::coro::Lazy<int> async_connect(int client_fd, const sockaddr *addr, socklen_t addrlen) = 0;
-    virtual async_simple::coro::Lazy<int> async_close(int fd) = 0;
+    virtual void shutdown() = 0;
+    virtual void start_ev_loop(size_t batch_size) = 0;
 };
 
 #endif //IO_CONTEXT_H

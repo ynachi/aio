@@ -32,7 +32,7 @@ class IoUringContext: public IoContextBase {
     // io_uring_register_iowq_max_workers for both bounded and unbounded queues
     // setting this to 0 disable kernel io threads and make all the operations
     // run on the main thread.
-    size_t io_threads_{1};
+    size_t io_uring_kernel_threads_{0};
 
     struct Operation {
         async_simple::Promise<int> promise;
@@ -132,7 +132,7 @@ class IoUringContext: public IoContextBase {
 
 public:
     IoUringContext(const size_t queue_size, const size_t io_threads)
-        : queue_size_(queue_size), io_threads_(io_threads)
+        : queue_size_(queue_size), io_uring_kernel_threads_(io_threads)
     {
         const int ret = io_uring_queue_init(queue_size_, &uring_, 0);
         if (ret < 0) {
@@ -141,8 +141,8 @@ public:
         }
 
         if constexpr (EnableSubmissionAsync) {
-            spdlog::info(std::format("enabling IO_URING kernel threads with {} threads.", io_threads_));
-            unsigned int max_workers[2] = {static_cast<unsigned int>(io_threads_), static_cast<unsigned int>(io_threads_)};
+            spdlog::info(std::format("enabling IO_URING kernel threads with {} threads.", io_uring_kernel_threads_));
+            unsigned int max_workers[2] = {static_cast<unsigned int>(io_uring_kernel_threads_), static_cast<unsigned int>(io_uring_kernel_threads_)};
             if (const int worker_ret = io_uring_register_iowq_max_workers(&uring_, max_workers);worker_ret < 0) {
                 spdlog::error("Failed to set max workers: {}", strerror(-worker_ret));
                 throw std::system_error(-worker_ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
@@ -156,6 +156,7 @@ public:
 
     ~IoUringContext() override
     {
+        spdlog::debug("calling destructor IoUringContext" );
         io_uring_queue_exit(&uring_);
         spdlog::debug("io_uring exited");
     }
@@ -345,9 +346,19 @@ public:
         co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
     }
 
-    async_simple::coro::Lazy<int> async_close(int fd) override
+    void shutdown() override
     {
-        co_return co_await prepare_operation(prep_close_wrapper, fd);
+        if (is_running) {
+            io_uring_queue_exit(&uring_);
+            is_running = false;
+        }
+    }
+
+    void start_ev_loop(size_t batch_size) override
+    {
+        while (is_running) {
+            process_completions_wait(batch_size);
+        }
     }
 };
 
