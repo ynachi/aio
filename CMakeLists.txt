@@ -5,6 +5,7 @@ cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_TOOLCHAIN_FILE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 # if (CMAKE_EXPORT_COMPILE_COMMANDS)
 #     execute_process(
 #             COMMAND ${CMAKE_COMMAND} -E copy_if_different

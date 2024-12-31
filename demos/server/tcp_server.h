@@ -12,7 +12,8 @@
 // Add graceful shutdown
 // Add metrics
 
-class TcpServer {
+class TcpServer
+{
     int server_fd{0};
     IoUringContext<false> io_uring_ctx;
     bool running_{true};
@@ -38,4 +39,4 @@ public:
     void stop();
 };
 
-#endif //TCP_SERVER_H
+#endif  // TCP_SERVER_H

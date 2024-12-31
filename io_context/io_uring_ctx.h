@@ -4,11 +4,12 @@
 
 #ifndef IO_URING_CTX_H
 #define IO_URING_CTX_H
-#include <liburing.h>
-#include <sys/socket.h>
-#include <spdlog/spdlog.h>
-#include <async_simple/coro/Lazy.h>
 #include <async_simple/coro/FutureAwaiter.h>
+#include <async_simple/coro/Lazy.h>
+#include <liburing.h>
+#include <spdlog/spdlog.h>
+#include <sys/socket.h>
+
 #include "io_context.h"
 
 //@TODO add some probe
@@ -19,12 +20,13 @@
 // read bytes
 // written bytes
 
-
-/// EnableSubmissionAsync allows to set IOSQE_ASYNC flag on SQEs. Setting these flag makes the kernel enqueues
-/// the io requests and spawn kernel threads to submit them asynchronously. This should normally not be set in you plan
-/// to manually scale the application.
-template <bool EnableSubmissionAsync>
-class IoUringContext: public IoContextBase {
+/// EnableSubmissionAsync allows to set IOSQE_ASYNC flag on SQEs. Setting these
+/// flag makes the kernel enqueues the io requests and spawn kernel threads to
+/// submit them asynchronously. This should normally not be set in you plan to
+/// manually scale the application.
+template<bool EnableSubmissionAsync>
+class IoUringContext : public IoContextBase
+{
     io_uring uring_{};
     bool is_running = true;
     size_t queue_size_ = 128;
@@ -34,17 +36,19 @@ class IoUringContext: public IoContextBase {
     // run on the main thread.
     size_t io_uring_kernel_threads_{0};
 
-    struct Operation {
+    struct Operation
+    {
         async_simple::Promise<int> promise;
     };
 
     // Helper to prepare an SQE with common setup
     template<typename PrepFn, typename... Args>
-    async_simple::coro::Lazy<int> prepare_operation(PrepFn prep_fn, Args&&... args)
+    async_simple::coro::Lazy<int> prepare_operation(PrepFn prep_fn, Args &&...args)
     {
         Operation op{};
         io_uring_sqe *sqe = get_sqe();
-        if (!sqe) {
+        if (!sqe)
+        {
             spdlog::error("Submission queue full");
             co_return -EAGAIN;
         }
@@ -52,7 +56,8 @@ class IoUringContext: public IoContextBase {
         // Call the preparation function with the sqe and forwarded arguments
         prep_fn(sqe, std::forward<Args>(args)...);
 
-        if constexpr (EnableSubmissionAsync) {
+        if constexpr (EnableSubmissionAsync)
+        {
             sqe->flags |= IOSQE_ASYNC;
         }
         sqe->user_data = reinterpret_cast<uint64_t>(&op);
@@ -60,47 +65,27 @@ class IoUringContext: public IoContextBase {
         co_return co_await op.promise.getFuture();
     }
 
-    // IO_URING wrappers, they keep the same signature and meaning as the original operations
-    static void prep_accept_wrapper(io_uring_sqe* sqe, const int fd, sockaddr* addr, socklen_t* addrlen)
-    {
-        io_uring_prep_accept(sqe, fd, addr, addrlen, 0);
-    }
+    // IO_URING wrappers, they keep the same signature and meaning as the original
+    // operations
+    static void prep_accept_wrapper(io_uring_sqe *sqe, const int fd, sockaddr *addr, socklen_t *addrlen) { io_uring_prep_accept(sqe, fd, addr, addrlen, 0); }
 
-    static void prep_read_wrapper(io_uring_sqe* sqe, const int fd, char* buf, const size_t len, const off_t offset)
-    {
-        io_uring_prep_read(sqe, fd, buf, len, offset);
-    }
+    static void prep_read_wrapper(io_uring_sqe *sqe, const int fd, char *buf, const size_t len, const off_t offset) { io_uring_prep_read(sqe, fd, buf, len, offset); }
 
-    static void prep_write_wrapper(io_uring_sqe* sqe, const int fd, const char* buf, const size_t len, const off_t offset)
-    {
-        io_uring_prep_write(sqe, fd, buf, len, offset);
-    }
+    static void prep_write_wrapper(io_uring_sqe *sqe, const int fd, const char *buf, const size_t len, const off_t offset) { io_uring_prep_write(sqe, fd, buf, len, offset); }
 
-    static void prep_readv_wrapper(io_uring_sqe* sqe, const int fd, const  iovec* iov, int iovcnt, const off_t offset)
-    {
-        io_uring_prep_readv(sqe, fd, iov, iovcnt, offset);
-    }
+    static void prep_readv_wrapper(io_uring_sqe *sqe, const int fd, const iovec *iov, int iovcnt, const off_t offset) { io_uring_prep_readv(sqe, fd, iov, iovcnt, offset); }
 
-    static void prep_writev_wrapper(io_uring_sqe* sqe, const int fd, const  iovec* iov, int iovcnt, const off_t offset)
-    {
-        io_uring_prep_writev(sqe, fd, iov, iovcnt, offset);
-    }
+    static void prep_writev_wrapper(io_uring_sqe *sqe, const int fd, const iovec *iov, int iovcnt, const off_t offset) { io_uring_prep_writev(sqe, fd, iov, iovcnt, offset); }
 
-    static void prep_connect_wrapper(io_uring_sqe* sqe, const int fd, const sockaddr* addr, const socklen_t addrlen)
-    {
-        io_uring_prep_connect(sqe, fd, addr, addrlen);
-    }
+    static void prep_connect_wrapper(io_uring_sqe *sqe, const int fd, const sockaddr *addr, const socklen_t addrlen) { io_uring_prep_connect(sqe, fd, addr, addrlen); }
 
-    static void prep_close_wrapper(io_uring_sqe* sqe, const int fd)
-    {
-        io_uring_prep_close(sqe, fd);
-    }
+    static void prep_close_wrapper(io_uring_sqe *sqe, const int fd) { io_uring_prep_close(sqe, fd); }
 
-
-    io_uring_cqe* get_cqe_wait()
+    io_uring_cqe *get_cqe_wait()
     {
         io_uring_cqe *cqe = nullptr;
-        if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0) {
+        if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0)
+        {
             spdlog::error("failed to wait for completions: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_wait_cqes failed");
         }
@@ -123,7 +108,8 @@ class IoUringContext: public IoContextBase {
 
     std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(const size_t batch_size)
     {
-        if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0) {
+        if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0)
+        {
             return {num, cqes};
         }
         // Fallback to blocking
@@ -131,23 +117,32 @@ class IoUringContext: public IoContextBase {
     }
 
 public:
-    IoUringContext(const size_t queue_size, const size_t io_threads)
-        : queue_size_(queue_size), io_uring_kernel_threads_(io_threads)
+    IoUringContext(const size_t queue_size, const size_t io_threads) : queue_size_(queue_size), io_uring_kernel_threads_(io_threads)
     {
+        if (queue_size_ == 0)
+        {
+            spdlog::error("queue size must be greater than 0");
+            throw std::invalid_argument("queue size must be greater than 0");
+        }
         const int ret = io_uring_queue_init(queue_size_, &uring_, 0);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             spdlog::error("Failed to initialize io_uring: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
         }
 
-        if constexpr (EnableSubmissionAsync) {
+        if constexpr (EnableSubmissionAsync)
+        {
             spdlog::info(std::format("enabling IO_URING kernel threads with {} threads.", io_uring_kernel_threads_));
             unsigned int max_workers[2] = {static_cast<unsigned int>(io_uring_kernel_threads_), static_cast<unsigned int>(io_uring_kernel_threads_)};
-            if (const int worker_ret = io_uring_register_iowq_max_workers(&uring_, max_workers);worker_ret < 0) {
+            if (const int worker_ret = io_uring_register_iowq_max_workers(&uring_, max_workers); worker_ret < 0)
+            {
                 spdlog::error("Failed to set max workers: {}", strerror(-worker_ret));
                 throw std::system_error(-worker_ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
             }
-        } else {
+        }
+        else
+        {
             spdlog::info("disabling io_uring kernel threads.");
         }
 
@@ -156,28 +151,20 @@ public:
 
     ~IoUringContext() override
     {
-        spdlog::debug("calling destructor IoUringContext" );
+        spdlog::debug("calling destructor IoUringContext");
         io_uring_queue_exit(&uring_);
         spdlog::debug("io_uring exited");
     }
 
     // get the io_uring instance
-    io_uring &get_uring() {
-        return uring_;
-    }
+    io_uring &get_uring() { return uring_; }
 
-    //get sqe
-    io_uring_sqe *get_sqe() {
-        return io_uring_get_sqe(&uring_);
-    }
+    // get sqe
+    io_uring_sqe *get_sqe() { return io_uring_get_sqe(&uring_); }
 
-    [[nodiscard]] size_t get_queue_depth() const {
-        return queue_size_;
-    }
+    [[nodiscard]] size_t get_queue_depth() const { return queue_size_; }
 
-    void stop() {
-        is_running = false;
-    }
+    void stop() { is_running = false; }
 
     /**
      * Submits pending IO requests to the io_uring instance.
@@ -198,7 +185,8 @@ public:
     void submit_sqs()
     {
         const int ret = io_uring_submit(&uring_);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             spdlog::error("failed to submit io requests: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
         }
@@ -208,9 +196,11 @@ public:
     void submit_sqs_wait()
     {
         const int ret = io_uring_submit_and_wait(&uring_, 1);
-        if (ret < 0) {
+        if (ret < 0)
+        {
             spdlog::error("failed to submit io requests: {}", strerror(-ret));
-            // @TODO not sure we want to thow here, lets check which kind of error we can get before
+            // @TODO not sure we want to thow here, lets check which kind of error we
+            // can get before
             throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
         }
         spdlog::debug("submitted {} io requests", ret);
@@ -241,7 +231,8 @@ public:
         // submit pending io requests first
         submit_sqs();
         io_uring_cqe *cqe;
-        while (io_uring_peek_cqe(&uring_, &cqe) == 0) {
+        while (io_uring_peek_cqe(&uring_, &cqe) == 0)
+        {
             auto *op = reinterpret_cast<Operation *>(cqe->user_data);
             op->promise.setValue(cqe->res);
             io_uring_cqe_seen(&uring_, cqe);
@@ -254,16 +245,19 @@ public:
         // submit pending io requests first
         submit_sqs_wait();
         io_uring_cqe *cqe;
-        while (io_uring_peek_cqe(&uring_, &cqe) == 0) {
+        while (io_uring_peek_cqe(&uring_, &cqe) == 0)
+        {
             handle_cqe(cqe);
         }
     }
 
-    // like process_completions but waits for completions to be available and process a batch of completions
+    // like process_completions but waits for completions to be available and
+    // process a batch of completions
     void process_completions_wait(size_t batch_size)
     {
         // Wait for at least one completion and submit pending ops
-        if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0) {
+        if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
+        {
             spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
             return;
         }
@@ -274,29 +268,29 @@ public:
         const auto count = io_uring_peek_batch_cqe(&uring_, cqes, batch_size);
 
         // Process all completions in the batch
-        for (unsigned i = 0; i < count; i++) {
+        for (unsigned i = 0; i < count; i++)
+        {
             auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
             op->promise.setValue(cqes[i]->res);
         }
 
         // Mark the entire batch as seen
-        if (count > 0) {
+        if (count > 0)
+        {
             io_uring_cq_advance(&uring_, count);
         }
     }
 
-    static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const size_t io_threads)
-    {
-        return std::make_shared<IoUringContext>(queue_size, io_threads);
-    }
+    static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const size_t io_threads) { return std::make_shared<IoUringContext>(queue_size, io_threads); }
 
     /**
      * Asynchronously accepts a new connection on a server socket.
      *
      * This method sets up an asynchronous accept operation using io_uring to wait
-     * for an incoming connection on the specified server file descriptor (`server_fd`).
-     * When a connection is successfully accepted, information about the connecting
-     * client's address is stored in the provided `addr` and `addrlen` parameters.
+     * for an incoming connection on the specified server file descriptor
+     * (`server_fd`). When a connection is successfully accepted, information
+     * about the connecting client's address is stored in the provided `addr` and
+     * `addrlen` parameters.
      *
      * The io_uring instance prepares an accept submission queue entry (SQE) with
      * the necessary arguments, links it to a promise-backed operation, and waits
@@ -304,22 +298,20 @@ public:
      *
      * Note:
      * - The method uses coroutine functionality and should be awaited.
-     * - On failure, an exception may be thrown, so error handling should be in place
-     *   during invocation.
+     * - On failure, an exception may be thrown, so error handling should be in
+     * place during invocation.
      *
-     * @param server_fd The file descriptor of the server socket to accept connections on.
-     * @param addr A pointer to a `sockaddr` structure where the client's address will
-     *             be stored upon a successful connection.
+     * @param server_fd The file descriptor of the server socket to accept
+     * connections on.
+     * @param addr A pointer to a `sockaddr` structure where the client's address
+     * will be stored upon a successful connection.
      * @param addrlen A pointer to a socklen_t variable that holds the size of the
      *                `addr` buffer. This is updated with the actual size of the
      *                client's address upon success.
-     * @return A coroutine that resolves to the file descriptor of the newly accepted
-     *         connection, or a negative value in case of failure.
+     * @return A coroutine that resolves to the file descriptor of the newly
+     * accepted connection, or a negative value in case of failure.
      */
-    async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) override
-    {
-        co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen);
-    }
+    async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) override { co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen); }
 
     async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset) override
     {
@@ -331,12 +323,12 @@ public:
         co_return co_await prepare_operation(prep_write_wrapper, client_fd, buf.data(), buf.size(), offset);
     }
 
-    async_simple::coro::Lazy<int> async_readv(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) override
+    async_simple::coro::Lazy<int> async_readv(int client_fd, const iovec *iov, int iovcnt, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_readv_wrapper, client_fd, iov, iovcnt, offset);
     }
 
-    async_simple::coro::Lazy<int> async_writev(int client_fd, const  iovec *iov, int iovcnt, uint64_t offset) override
+    async_simple::coro::Lazy<int> async_writev(int client_fd, const iovec *iov, int iovcnt, uint64_t offset) override
     {
         co_return co_await prepare_operation(prep_writev_wrapper, client_fd, iov, iovcnt, offset);
     }
@@ -348,7 +340,8 @@ public:
 
     void shutdown() override
     {
-        if (is_running) {
+        if (is_running)
+        {
             io_uring_queue_exit(&uring_);
             is_running = false;
         }
@@ -356,10 +349,11 @@ public:
 
     void start_ev_loop(size_t batch_size) override
     {
-        while (is_running) {
+        while (is_running)
+        {
             process_completions_wait(batch_size);
         }
     }
 };
 
-#endif //IO_URING_CTX_H
+#endif  // IO_URING_CTX_H
