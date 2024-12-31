@@ -5,13 +5,13 @@ cmake_policy(SET CMP0167 NEW)
 set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-if (CMAKE_EXPORT_COMPILE_COMMANDS)
-    execute_process(
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            ${CMAKE_BINARY_DIR}/compile_commands.json
-            ${CMAKE_SOURCE_DIR}/compile_commands.json
-    )
-endif()
+# if (CMAKE_EXPORT_COMPILE_COMMANDS)
+#     execute_process(
+#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#             ${CMAKE_BINARY_DIR}/compile_commands.json
+#             ${CMAKE_SOURCE_DIR}/compile_commands.json
+#     )
+# endif()
 
 # Apply AddressSanitizer and Integer Overflow options only in Debug mode
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -34,7 +34,6 @@ find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
 find_package(spdlog CONFIG REQUIRED)
 find_package(async_simple CONFIG REQUIRED)
 find_package(benchmark CONFIG REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_package(fmt CONFIG REQUIRED)

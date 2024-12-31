@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "fmt",
+    "spdlog",
+    "async-simple",
+    "gtest",
+    "benchmark"
+  ]
+}
