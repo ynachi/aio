@@ -6,7 +6,7 @@
 #define TCPLISTENER_H
 #include <memory>
 
-#include "io_context.h"
+#include "io_context/io_context.h"
 #include "tcp_stream.h"
 
 class TCPListener
@@ -17,7 +17,7 @@ class TCPListener
     uint16_t port_{};
 
 public:
-    struct ListenOptions 
+    struct ListenOptions
     {
         bool reuse_addr = true;
         bool reuse_port = true;
@@ -58,13 +58,9 @@ public:
      * shared, ensuring the resource remains valid during the lifetime of the
      * TCPListener.
      */
-    explicit TCPListener(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options,
-                         std::string_view ip_address, uint16_t port);
+    explicit TCPListener(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
 
-    TCPListener(TCPListener &&other) noexcept : server_fd_(other.server_fd_), io_context_(std::move(other.io_context_))
-    {
-        other.server_fd_ = -1;
-    }
+    TCPListener(TCPListener &&other) noexcept : server_fd_(other.server_fd_), io_context_(std::move(other.io_context_)) { other.server_fd_ = -1; }
 
     /**
      * @brief Constructs a TCPListener object and initializes the I/O context.
@@ -90,8 +86,7 @@ public:
      * configured with the specified `io_queue_depth` and
      * `io_uring_kernel_threads`.
      */
-    TCPListener(bool enable_submission_async, size_t io_uring_kernel_threads, size_t io_queue_depth,
-                const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
+    TCPListener(bool enable_submission_async, size_t io_uring_kernel_threads, size_t io_queue_depth, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
 
     // @TODO: return an integer error code for now, return a true error struct
     // later

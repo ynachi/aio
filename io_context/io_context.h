@@ -5,15 +5,12 @@
 #ifndef IO_CONTEXT_H
 #define IO_CONTEXT_H
 #include <async_simple/coro/Lazy.h>
-#include <expected>
 #include <memory>
 #include <sys/socket.h>
 class IoContextBase : public std::enable_shared_from_this<IoContextBase>
 {
 public:
     virtual ~IoContextBase() = default;
-
-    std::expected<std::string, int> test() { return std::string("test"); }
 
     /**
      * @brief Get a shared pointer to this instance.

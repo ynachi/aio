@@ -6,13 +6,6 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_TOOLCHAIN_FILE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
-# if (CMAKE_EXPORT_COMPILE_COMMANDS)
-#     execute_process(
-#             COMMAND ${CMAKE_COMMAND} -E copy_if_different
-#             ${CMAKE_BINARY_DIR}/compile_commands.json
-#             ${CMAKE_SOURCE_DIR}/compile_commands.json
-#     )
-# endif()
 
 # Apply AddressSanitizer and Integer Overflow options only in Debug mode
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -20,53 +13,28 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_link_options(-fsanitize=address,undefined)
 endif ()
 
-#if (DEFINED ENV{VCPKG_ROOT})
-#    set(VCPKG_TOOLCHAIN_FILE "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake")
-#    if (NOT EXISTS ${VCPKG_TOOLCHAIN_FILE})
-#        message(FATAL_ERROR "The vcpkg toolchain file doesn't exist at: ${VCPKG_TOOLCHAIN_FILE}")
-#    endif ()
-#    set(CMAKE_TOOLCHAIN_FILE ${VCPKG_TOOLCHAIN_FILE} CACHE STRING "Vcpkg toolchain file")
-#else ()
-#    message(FATAL_ERROR "VCPKG_ROOT environment variable is not defined. Please set it to your vcpkg installation path.")
-#endif ()
+# set include directories from this CMake file
+include_directories(${CMAKE_SOURCE_DIR})
+
+find_package(PkgConfig REQUIRED)
+
+# for internal io_context library
+add_subdirectory(io_context)
+# for network library
+add_subdirectory(network)
+# for demos
+add_subdirectory(demos)
 
 # python
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
-find_package(async_simple CONFIG REQUIRED)
-find_package(benchmark CONFIG REQUIRED)
-find_package(GTest CONFIG REQUIRED)
-find_package(PkgConfig REQUIRED)
-find_package(fmt CONFIG REQUIRED)
 
-# Check for liburing
-pkg_check_modules(LIBURING REQUIRED liburing)
 
-include_directories(${CMAKE_SOURCE_DIR}/io_context ${CMAKE_SOURCE_DIR}/demo/server)
-
-# Set include directories and library paths from pkg-config
-include_directories(${LIBURING_INCLUDE_DIRS})
-link_directories(${LIBURING_LIBRARY_DIRS})
-add_definitions(${LIBURING_CFLAGS_OTHER})
-
-add_library(io_context_lib io_context/io_uring_ctx.h io_context/io_context.h)
-# need to link fmt because of spdlog
-target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog)
-
-add_library(network_lib tcp_listener.cpp tcp_listener.h tcp_stream.h tcp_stream.cpp)
-target_link_libraries(network_lib PRIVATE io_context_lib ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
-
-add_library(tcp_server demos/server/tcp_server.h demos/server/tcp_server.cpp)
-target_link_libraries(tcp_server PRIVATE io_context_lib ${LIBURING_LIBRARIES} fmt::fmt async_simple::async_simple_static)
-
-add_executable(tcp_demo demos/server/main.cpp)
-target_link_libraries(tcp_demo PRIVATE tcp_server io_context_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
-
-add_executable(char_count_demo demos/char_count.cpp)
-target_link_libraries(char_count_demo PRIVATE io_context_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
-
-add_executable(srv201 srv.cpp)
-target_link_libraries(srv201 PRIVATE io_context_lib network_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
+# TODO: keep them here for now. I do not want to look for how to use them in the future
+# find_package(spdlog CONFIG REQUIRED)
+# find_package(async_simple CONFIG REQUIRED)
+# find_package(benchmark CONFIG REQUIRED)
+# find_package(GTest CONFIG REQUIRED)
+# find_package(fmt CONFIG REQUIRED)
 
 
 #add_executable(follow follo.cpp)

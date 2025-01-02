@@ -2,13 +2,13 @@
 // Created by ulozaka on 12/29/24.
 //
 
-#include "tcp_listener.h"
+#include "network/tcp_listener.h"
 
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <spdlog/spdlog.h>
 
-#include "io_uring_ctx.h"
+#include "io_context/io_uring_ctx.h"
 
 std::string get_ip_port_as_string(const sockaddr_in &client_addr)
 {
