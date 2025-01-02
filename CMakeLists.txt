@@ -7,12 +7,6 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_TOOLCHAIN_FILE $ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake)
 
-# Apply AddressSanitizer and Integer Overflow options only in Debug mode
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    add_compile_options(-fsanitize=address,undefined -g) # Includes AddressSanitizer and Undefined Behavior Sanitizer
-    add_link_options(-fsanitize=address,undefined)
-endif ()
-
 # set include directories from this CMake file
 include_directories(${CMAKE_SOURCE_DIR})
 
