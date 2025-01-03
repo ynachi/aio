@@ -3,7 +3,32 @@ Let's experiment io_uring and async network programming in C++
 
 This is a work in progress. The goal is to create a simple and efficient async io library in C++ using io_uring.
 The library supports files operations and network sockets. We use alibaba async_simple to take care of the coroutine
-machinery.  
+machinery.
+
+# How to build
+
+## First, install liburing 2.8
+```shell
+wget https://github.com/axboe/liburing/archive/refs/tags/liburing-2.8.tar.gz -O - | tar -xvz
+cd liburing-liburing-2.8
+./configure --prefix=/usr/local
+make -C src -j $(nprocs)
+sudo make install
+```
+
+## Clone the repo with submodules
+```shell
+git clone --recursive  https://github.com/ynachi/aio.git
+```
+
+## build
+```shell
+# example, build debug
+cmake --workflow --preset debug
+# after that, you will find binaries in build/debug/bin folder
+```
+
+# Demos/examples
 
 This minimal version has been demoed with a simple echo server and a simple file read program.
 1. [echo server](./demos/server)
