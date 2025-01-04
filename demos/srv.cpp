@@ -6,6 +6,7 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 
+#include "errors.h"
 #include "network/tcp_listener.h"
 
 async_simple::coro::Lazy<> handle_client(TcpStream &&stream)
@@ -53,7 +54,13 @@ async_simple::coro::Lazy<> accept_connections(TCPListener &listener)
 {
     while (true)
     {
-        auto stream = co_await listener.async_accept();
+        auto maybe_stream = co_await listener.async_accept();
+        if (!maybe_stream.has_value())
+        {
+            spdlog::error("error accepting connection: {}", to_string(maybe_stream.error()));
+            continue;
+        }
+        auto stream = std::move(maybe_stream.value());
         spdlog::debug("got a new connection fd = {}", stream.get_fd());
         handle_client(std::move(stream)).start([](auto &&) {});
     }
