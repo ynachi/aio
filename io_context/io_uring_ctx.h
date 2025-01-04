@@ -7,6 +7,8 @@
 #include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/coro/Lazy.h>
 #include <liburing.h>
+#include <liburing/io_uring.h>
+#include <linux/version.h>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
 
@@ -119,12 +121,20 @@ class IoUringContext : public IoContextBase
 public:
     IoUringContext(const size_t queue_size, const size_t io_threads) : queue_size_(queue_size), io_uring_kernel_threads_(io_threads)
     {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+        spdlog::error("io_uring requires kernel version 6.0 or later");
+        throw std::runtime_error("aio requires kernel version 6.0 or later");
+#endif
         if (queue_size_ == 0)
         {
             spdlog::error("queue size must be greater than 0");
             throw std::invalid_argument("queue size must be greater than 0");
         }
-        const int ret = io_uring_queue_init(queue_size_, &uring_, 0);
+
+        io_uring_params params{};
+        params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER | IORING_SETUP_TASKRUN_FLAG;
+
+        const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params);
         if (ret < 0)
         {
             spdlog::error("Failed to initialize io_uring: {}", strerror(-ret));
