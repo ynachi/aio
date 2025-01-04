@@ -5,10 +5,13 @@
 #include "network/tcp_listener.h"
 
 #include <arpa/inet.h>
+#include <expected>
 #include <netinet/in.h>
 #include <spdlog/spdlog.h>
 
+#include "errors.h"
 #include "io_context/io_uring_ctx.h"
+#include "network/tcp_stream.h"
 
 std::string get_ip_port_as_string(const sockaddr_in &client_addr)
 {
@@ -89,15 +92,16 @@ TCPListener::TCPListener(const bool enable_submission_async, const size_t io_uri
     }
 }
 
-async_simple::coro::Lazy<TcpStream> TCPListener::async_accept()
+async_simple::coro::Lazy<std::expected<TcpStream, AioError>> TCPListener::async_accept()
 {
     sockaddr_in client_addr{};
     socklen_t client_addr_len = sizeof(client_addr);
     int client_fd = co_await io_context_->async_accept(server_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
-    // if (client_fd < 0) {
-    //     spdlog::error("failed to accept connection: {}", strerror(-client_fd));
-    //    co_return nullptr;
-    // }
+    if (client_fd < 0)
+    {
+        spdlog::error("failed to accept connection: {}", strerror(-client_fd));
+        co_return std::unexpected(from_errno(-client_fd));
+    }
     auto stream = TcpStream{client_fd, io_context_, ip_address_, get_ip_port_as_string(client_addr)};
     co_return std::move(stream);
 }

@@ -4,8 +4,10 @@
 
 #ifndef TCPLISTENER_H
 #define TCPLISTENER_H
+#include <expected>
 #include <memory>
 
+#include "errors.h"
 #include "io_context/io_context.h"
 #include "tcp_stream.h"
 
@@ -90,7 +92,7 @@ public:
 
     // @TODO: return an integer error code for now, return a true error struct
     // later
-    async_simple::coro::Lazy<TcpStream> async_accept();
+    async_simple::coro::Lazy<std::expected<TcpStream, AioError>> async_accept();
 
     void run_event_loop() const { io_context_->start_ev_loop(256); }
 

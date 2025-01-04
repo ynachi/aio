@@ -12,4 +12,4 @@ add_definitions(${LIBURING_CFLAGS_OTHER})
 
 add_library(io_context_lib io_uring_ctx.h io_context.h)
 # need to link fmt because of spdlog
-target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog utils)
+target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} async_simple::async_simple_static fmt::fmt spdlog::spdlog)
