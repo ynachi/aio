@@ -6,7 +6,7 @@
 #include <iostream>
 #include <spdlog/spdlog.h>
 
-#include "errors.h"
+#include "core/errors.h"
 #include "network/tcp_listener.h"
 
 async_simple::coro::Lazy<> handle_client(TcpStream &&stream)

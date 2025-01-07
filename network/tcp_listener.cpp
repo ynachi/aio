@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <spdlog/spdlog.h>
 
-#include "errors.h"
+#include "core/errors.h"
 #include "io_context/io_uring_ctx.h"
 #include "network/tcp_stream.h"
 

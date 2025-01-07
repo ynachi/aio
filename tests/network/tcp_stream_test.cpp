@@ -33,16 +33,18 @@ TEST(BufferTest, SizeReturnsActualDataSize)
     EXPECT_EQ(buf.capacity(), 100);
 }
 
-TEST_F(TcpStreamTest, ReadWriteSuccess)
+TEST_F(TcpStreamTest, BasicReadWriteSuccess)
 {
     std::string data = "Hello, World!";
-    // tcp_stream_.read_buffer().write(data.data(), data.size());
     auto write_res = async_simple::coro::syncAwait(tcp_stream_.write(data));
 
     ASSERT_TRUE(write_res.has_value());
 
-    // std::vector<char> buffer(5);
-    // auto result = async_simple::coro::syncAwait(tcp_stream_.read(buffer));
+    std::vector<char> buffer(5);
+    auto result = async_simple::coro::syncAwait(tcp_stream_.read(buffer));
+    // we were served from the internal buffer
+    ASSERT_TRUE(result.has_value());
+    ASSERT_EQ(result.value(), 5);
 
     // ASSERT_TRUE(result);
     // ASSERT_EQ(result.value(), 5);

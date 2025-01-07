@@ -2,7 +2,7 @@
 *.d
 .venv
 build
-
+build-*/
 # Compiled Object files
 *.slo
 *.lo
@@ -88,7 +88,6 @@ ninja_log
 
 # Visual Studio with CMake
 .vs/
-.vscode/
 build/
 cmake-build-*
 
