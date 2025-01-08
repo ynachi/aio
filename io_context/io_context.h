@@ -9,6 +9,11 @@
 #include <sys/socket.h>
 class IoContextBase : public std::enable_shared_from_this<IoContextBase>
 {
+    std::atomic<bool> is_shutdown_{false};
+
+    // Derived classes should implement this method to do the actual shutdown
+    virtual void do_shutdown() = 0;
+
 public:
     virtual ~IoContextBase() = default;
 
@@ -77,7 +82,17 @@ public:
     /**
      * @brief Shutdown the io context, making it no longer process requests.
      */
-    virtual void shutdown() = 0;
+    virtual void shutdown()
+    {
+        if (bool expected = false; !is_shutdown_.compare_exchange_strong(expected, true))
+        {
+            return;  // already shutdown
+        }
+        // do the actual shutdown
+        do_shutdown();
+    }
+
+    bool is_shutdown() const { return is_shutdown_; }
 
     /**
      * @brief Start the event loop. The event loop needs to be run in order to process requests. It should be run in the same thread that created the io context.

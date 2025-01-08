@@ -1,0 +1,16 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Example of single test debu",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/debug/bin/in_memory_context_test",
+            "args": [
+                "--gtest_filter=InMemoryIoContextTest.NormalSetWrite"
+            ],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build"
+        }
+    ]
+}

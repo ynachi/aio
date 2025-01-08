@@ -9,11 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # set include directories from this CMake file
 include_directories(${CMAKE_SOURCE_DIR})
 
-# Create INTERFACE library for headers
-add_library(utils INTERFACE)
-target_include_directories(utils INTERFACE 
-    ${CMAKE_CURRENT_SOURCE_DIR}
-)
+add_subdirectory(core)
 
 find_package(PkgConfig REQUIRED)
 
@@ -24,8 +20,16 @@ add_subdirectory(network)
 # for demos
 add_subdirectory(demos)
 
+# for benchmarks
+add_subdirectory(benchmarks)
+
 # python
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+
+# for tests
+include(CTest)
+enable_testing()
+add_subdirectory(tests)
 
 
 # TODO: keep them here for now. I do not want to look for how to use them in the future

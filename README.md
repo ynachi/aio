@@ -7,8 +7,9 @@ machinery.
 
 # How to build
 
-## First, install liburing 2.8
+## First, install liburing 2.8 and pkg-config
 ```shell
+sudo apt install pkg-config
 wget https://github.com/axboe/liburing/archive/refs/tags/liburing-2.8.tar.gz -O - | tar -xvz
 cd liburing-liburing-2.8
 ./configure --prefix=/usr/local
@@ -31,8 +32,10 @@ cmake --workflow --preset debug
 # Demos/examples
 
 This minimal version has been demoed with a simple echo server and a simple file read program.
-1. [echo server](./demos/server)
-2. [file read](./demos/char_count.cpp)
+1. [echo server](./demos/low_level_tcp_server): demonstrates the usage of the low level io_uring wrapper to create an async TCP server.
+2. [file read](./demos/char_count_low.cpp): demonstrates the usage of the low level io_uring wrapper to read a file.
+3. [echo_server_201](./demos/tcp_server_201.cpp): demonstrates the usage of higher level classes to build a TCP server. In this example, the user still need to run the event loop himself.
+
 
 
 Bemchmarks:  
