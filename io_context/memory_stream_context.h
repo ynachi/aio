@@ -1,19 +1,19 @@
 #pragma once
 
 /// A simple in-memory context for testing purposes.
+#include <cassert>  // NOLINT used by "async_simple/coro/Mutex.h"
 #include <chrono>
-#include <cassert> // NOLINT used by "async_simple/coro/Mutex.h"
 #include <unordered_map>
 #include <vector>
-#include "async_simple/coro/Mutex.h"
 
+#include "async_simple/coro/Mutex.h"
 #include "io_context/io_context.h"
 
 /**
  * Memory stream context for testing purposes.
  * Not suitable for files, only for sockets or steam based FD where writes can only happen at the end.
  */
-class MemoryStreamContext final : public IoContextBase
+class MemoryStreamContext : public IoContextBase
 {
 public:
     struct Condition
@@ -63,10 +63,7 @@ public:
     // Helper function to set random latency conditions for a file descriptor
     async_simple::coro::Lazy<> set_random_latency(int fd, std::chrono::milliseconds low, std::chrono::milliseconds high) noexcept;
 
-    void shutdown() override
-    {
-        buffers_.clear();
-    }
+    void shutdown() override { buffers_.clear(); }
 
     void start_ev_loop(size_t /*batch_size*/) override
     {
@@ -74,6 +71,7 @@ public:
     }
 
 private:
+    void do_shutdown() override {}
     async_simple::coro::Mutex mutex_;
     int next_fd_{1000};
     std::unordered_map<int, std::vector<char>> buffers_;
@@ -82,5 +80,4 @@ private:
     // checks if there are error conditions to take into account
     // also sets errno if needed to match the error condition
     async_simple::coro::Lazy<bool> fd_has_error(int fd) noexcept;
-
 };

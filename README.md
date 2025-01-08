@@ -7,8 +7,9 @@ machinery.
 
 # How to build
 
-## First, install liburing 2.8
+## First, install liburing 2.8 and pkg-config
 ```shell
+sudo apt install pkg-config
 wget https://github.com/axboe/liburing/archive/refs/tags/liburing-2.8.tar.gz -O - | tar -xvz
 cd liburing-liburing-2.8
 ./configure --prefix=/usr/local

@@ -3,66 +3,87 @@
 //
 
 #include <async_simple/coro/Lazy.h>
-#include <iostream>
 #include <spdlog/spdlog.h>
 
 #include "core/errors.h"
 #include "network/tcp_listener.h"
-
-async_simple::coro::Lazy<> handle_client(TcpStream &&stream)
+using namespace net;
+async_simple::coro::Lazy<> handle_client(TcpStream client_stream)  // Take by value
 {
     try
     {
         char buffer[1024];
+        spdlog::debug("Starting to handle client on fd: {}", client_stream.get_fd());
 
         while (true)
         {
-            int bytes_read = co_await stream.async_read(std::span(buffer));
-            if (bytes_read < 0)
+            auto bytes_read = co_await client_stream.read(std::span(buffer));
+            if (!bytes_read)
             {
-                spdlog::error("error reading from client: {} msg {}", stream.local_address(), strerror(-bytes_read));
+                spdlog::error("error reading from client: {} {} (fd: {})",
+                    client_stream.local_address(),
+                    bytes_read.error().message(),
+                    client_stream.get_fd());
                 break;
             }
 
-            if (bytes_read == 0)
+            if (bytes_read.value() == 0)
             {
-                // Client disconnected
-                spdlog::info("client disconnected: {}", stream.local_address());
+                spdlog::debug("client disconnected: {} (fd: {})",
+                    client_stream.local_address(),
+                    client_stream.get_fd());
                 break;
             }
 
-
-            int bytes_written = co_await stream.async_write(std::span(buffer, bytes_read));
-            if (bytes_written < 0)
+            auto bytes_written = co_await client_stream.write(std::span(buffer, bytes_read.value()));
+            if (!bytes_written)
             {
-                spdlog::error("error writing to client: {} msg {}", stream.local_address(), strerror(-bytes_written));
+                spdlog::error("error writing to client: {} {} (fd: {})",
+                    client_stream.local_address(),
+                    bytes_written.error().message(),
+                    client_stream.get_fd());
                 break;
             }
         }
     }
-    catch (const std::exception &e)
+    catch (const std::exception& e)
     {
-        std::cerr << "Exception handling client: " << e.what() << "\n";
+        spdlog::error("Exception handling client: {} (fd: {})",
+            e.what(),
+            client_stream.get_fd());
     }
 
-    // Properly close the client socket
-    spdlog::info("finish processing session: {}", stream.local_address());
-    stream.shutdown();
+    spdlog::debug("finish processing session: {} (fd: {})",
+        client_stream.local_address(),
+        client_stream.get_fd());
 }
 
-async_simple::coro::Lazy<> accept_connections(TCPListener &listener)
+async_simple::coro::Lazy<> accept_connections(TCPListener& listener)
 {
     while (true)
     {
         auto maybe_stream = co_await listener.async_accept();
-        if (!maybe_stream.has_value())
+        if (!maybe_stream)
         {
             spdlog::error("error accepting connection: {}", to_string(maybe_stream.error()));
             continue;
         }
-        auto stream = std::move(maybe_stream.value());
-        spdlog::debug("got a new connection fd = {}", stream.get_fd());
-        handle_client(std::move(stream)).start([](auto &&) {});
+
+        spdlog::debug("Accepted new connection fd = {}", maybe_stream.value().get_fd());
+
+        // Create the coroutine and immediately detach it
+        auto handle_task = handle_client(std::move(maybe_stream.value()));
+        handle_task.start([](auto&&) {
+            // Log any errors in the completion handler
+            if (std::current_exception())
+            {
+                try {
+                    std::rethrow_exception(std::current_exception());
+                } catch(const std::exception& e) {
+                    spdlog::error("Unhandled exception in client handler: {}", e.what());
+                }
+            }
+        });
     }
 }
 

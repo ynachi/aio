@@ -30,7 +30,6 @@ template<bool EnableSubmissionAsync>
 class IoUringContext : public IoContextBase
 {
     io_uring uring_{};
-    bool is_running = true;
     size_t queue_size_ = 128;
     static constexpr int DEFAULT_IO_FLAGS = 0;
     // io_uring_register_iowq_max_workers for both bounded and unbounded queues
@@ -51,7 +50,7 @@ class IoUringContext : public IoContextBase
         io_uring_sqe *sqe = get_sqe();
         if (!sqe)
         {
-            spdlog::error("Submission queue full");
+            spdlog::error("IoUringContext::prepare_operation Submission queue full");
             co_return -EAGAIN;
         }
 
@@ -88,7 +87,7 @@ class IoUringContext : public IoContextBase
         io_uring_cqe *cqe = nullptr;
         if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0)
         {
-            spdlog::error("failed to wait for completions: {}", strerror(-ret));
+            spdlog::error("IoUringContext::get_cqe_wait failed to wait for completions: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_wait_cqes failed");
         }
         return cqe;
@@ -118,6 +117,8 @@ class IoUringContext : public IoContextBase
         return {1, get_cqe_wait()};
     }
 
+    void do_shutdown() override { io_uring_queue_exit(&uring_); }
+
 public:
     IoUringContext(const size_t queue_size, const size_t io_threads) : queue_size_(queue_size), io_uring_kernel_threads_(io_threads)
     {
@@ -127,7 +128,7 @@ public:
 #endif
         if (queue_size_ == 0)
         {
-            spdlog::error("queue size must be greater than 0");
+            spdlog::error("IoUringContext::init queue size must be greater than 0");
             throw std::invalid_argument("queue size must be greater than 0");
         }
 
@@ -137,33 +138,33 @@ public:
         const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params);
         if (ret < 0)
         {
-            spdlog::error("Failed to initialize io_uring: {}", strerror(-ret));
+            spdlog::error("IoUringContext::init failed to initialize io_uring: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
         }
 
         if constexpr (EnableSubmissionAsync)
         {
-            spdlog::info(std::format("enabling IO_URING kernel threads with {} threads.", io_uring_kernel_threads_));
+            spdlog::info(std::format("IoUringContext::init enabling IO_URING kernel threads with {} threads.", io_uring_kernel_threads_));
             unsigned int max_workers[2] = {static_cast<unsigned int>(io_uring_kernel_threads_), static_cast<unsigned int>(io_uring_kernel_threads_)};
             if (const int worker_ret = io_uring_register_iowq_max_workers(&uring_, max_workers); worker_ret < 0)
             {
-                spdlog::error("Failed to set max workers: {}", strerror(-worker_ret));
+                spdlog::error("IoUringContext::init failed to set max workers: {}", strerror(-worker_ret));
                 throw std::system_error(-worker_ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
             }
         }
         else
         {
-            spdlog::info("disabling io_uring kernel threads.");
+            spdlog::info("IoUringContext::init disabling io_uring kernel threads.");
         }
 
-        spdlog::info("Successfully initialized io_uring.");
+        spdlog::info("IoUringContext::init successfully initialized io_uring.");
     }
 
     ~IoUringContext() override
     {
-        spdlog::debug("calling destructor IoUringContext");
+        spdlog::debug("IoUringContext::deinit calling destructor IoUringContext");
         io_uring_queue_exit(&uring_);
-        spdlog::debug("io_uring exited");
+        spdlog::debug("IoUringContext::deinit io_uring exited");
     }
 
     // get the io_uring instance
@@ -173,8 +174,6 @@ public:
     io_uring_sqe *get_sqe() { return io_uring_get_sqe(&uring_); }
 
     [[nodiscard]] size_t get_queue_depth() const { return queue_size_; }
-
-    void stop() { is_running = false; }
 
     /**
      * Submits pending IO requests to the io_uring instance.
@@ -197,10 +196,10 @@ public:
         const int ret = io_uring_submit(&uring_);
         if (ret < 0)
         {
-            spdlog::error("failed to submit io requests: {}", strerror(-ret));
+            spdlog::error("IoUringContext::submit_sqs failed to submit io requests: {}", strerror(-ret));
             throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
         }
-        spdlog::debug("submitted {} io requests", ret);
+        spdlog::debug("IoUringContext::submit_sqs submitted {} io requests", ret);
     }
 
     void submit_sqs_wait()
@@ -348,18 +347,9 @@ public:
         co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
     }
 
-    void shutdown() override
+    void start_ev_loop(const size_t batch_size) override
     {
-        if (is_running)
-        {
-            io_uring_queue_exit(&uring_);
-            is_running = false;
-        }
-    }
-
-    void start_ev_loop(size_t batch_size) override
-    {
-        while (is_running)
+        while (!is_shutdown())
         {
             process_completions_wait(batch_size);
         }

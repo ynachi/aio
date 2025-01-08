@@ -108,7 +108,7 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t io_queu
 TcpServer::~TcpServer()
 {
     running_ = false;
-    io_uring_ctx.stop();
+    io_uring_ctx.shutdown();
     close(server_fd);
 }
 
