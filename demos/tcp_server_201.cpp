@@ -3,6 +3,7 @@
 //
 
 #include <async_simple/coro/Lazy.h>
+#include <csignal>
 #include <spdlog/spdlog.h>
 
 #include "core/errors.h"
@@ -93,5 +94,7 @@ int main()
     auto listener = TCPListener(false, 0, 4096, TCPListener::ListenOptions{}, "127.0.0.1", 8080);
     accept_connections(listener).start([](auto &&) {});
     listener.run_event_loop();
+    // signal(SIGINT, [&] { listener.stop(); });
+
     return 0;
 }
