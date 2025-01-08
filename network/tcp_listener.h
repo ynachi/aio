@@ -14,38 +14,34 @@
 
 namespace net
 {
-    class IPAddress
+    struct IPAddress
     {
-        using Storage = std::variant<sockaddr_in, sockaddr_in6>;
-
-        Storage storage_;
+        sockaddr storage_{};
+        socklen_t storage_size_ = 0;
         // original address string
         std::string address_;
         uint16_t port_ = 0;
 
-    public:
         // parse a string to an IP address
         static IPAddress from_string(std::string_view address, uint16_t port = 0);
         // resolve a hostname to an IP addresses. Performs both IPv4 and IPv6 resolution. This call is blocking.
         static std::vector<IPAddress> resolve(std::string_view address);
 
-        void set_port(uint16_t port)
-        {
-            port_ = port;
-            if (std::holds_alternative<sockaddr_in>(storage_))
-            {
-                std::get<sockaddr_in>(storage_).sin_port = htons(port);
-            }
-            else
-            {
-                std::get<sockaddr_in6>(storage_).sin6_port = htons(port);
-            }
-        }
+        void set_port(uint16_t port);
 
         [[nodiscard]] std::string address() const { return address_; }
         [[nodiscard]] uint16_t port() const { return port_; }
 
-        [[nodiscard]] std::string to_string() const { return std::format("{}:{}", address_, port_); };
+        [[nodiscard]] std::string to_string() const { return std::format("{}:{}", address_, port_); }
+
+        // Get a pointer to the sockaddr for use in socket calls
+        sockaddr* get_sockaddr() {
+            return &storage_;
+        }
+
+        [[nodiscard]] const sockaddr* get_sockaddr() const {
+            return &storage_;
+        }
     };
 
     class TCPListener

@@ -32,8 +32,8 @@ cmake --workflow --preset debug
 # Demos/examples
 
 This minimal version has been demoed with a simple echo server and a simple file read program.
-1. [echo server](./demos/server)
-2. [file read](./demos/char_count.cpp)
+1. [echo server](./demos/low_level_tcp_server): demonstrates the usage of the low level io_uring wrapper to create an async TCP server.
+2. [file read](./demos/char_count_low.cpp): demonstrates the usage of the low level io_uring wrapper to read a file.
 
 
 Bemchmarks:  
