@@ -6,7 +6,6 @@
 #define TCP_STREAM_H
 #include <cstddef>
 #include <expected>
-#include <format>
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
@@ -24,8 +23,8 @@ namespace net
     {
         int fd_{-1};
         std::shared_ptr<IoContextBase> io_context_;
-        std::string local_address_;
-        std::string remote_address_;
+        std::string local_endpoint_;
+        std::string remote_endpoint_;
         TCPStreamOptions options_;
 
 
@@ -37,7 +36,7 @@ namespace net
         TcpStream &operator=(TcpStream &&) noexcept;
 
         TcpStream(const int fd, std::shared_ptr<IoContextBase> io_context, std::string_view local_address, std::string_view remote_address) :
-            fd_(fd), io_context_(std::move(io_context)), local_address_(local_address), remote_address_(remote_address)
+            fd_(fd), io_context_(std::move(io_context)), local_endpoint_(local_address), remote_endpoint_(remote_address)
         {
         }
 
@@ -86,7 +85,7 @@ namespace net
         async_simple::coro::Lazy<std::expected<size_t, std::error_code>> write(std::span<const char> buffer);
 
         /**
-         * @brief write_all write all the data to the internal socket. If could make multiple internal write calls to write all the data.
+         * @brief write_all write all the data to the internal socket. If you could make multiple internal write calls to write all the data.
          * @param buffer
          * @return The number of bytes written or an error code
          */
@@ -96,14 +95,16 @@ namespace net
 
         async_simple::coro::Lazy<std::expected<size_t, std::error_code>> writev_all(const iovec *iov, int iovcnt);
 
-        [[nodiscard]] std::string remote_address() const { return remote_address_; }
-        [[nodiscard]] std::string local_address() const { return local_address_; }
+        [[nodiscard]] std::string remote_endpoint() const { return remote_endpoint_; }
+        [[nodiscard]] std::string local_endpoint() const { return local_endpoint_; }
 
         void close() const
         {
+            spdlog::debug("TcpStream::close() closing socket fd={}", fd_);
             if (fd_ > 0)
             {
                 ::close(fd_);
+                spdlog::debug("TcpStream::close() closed socket fd={}", fd_);
             }
         }
     };

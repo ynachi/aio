@@ -2,7 +2,7 @@
 // Created by ulozaka on 12/29/24.
 //
 
-#include "network/tcp_listener.h"
+#include "network/tcp_server.h"
 
 #include <arpa/inet.h>
 #include <cstdint>
@@ -75,7 +75,7 @@ namespace net
         std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> addrinfo_guard(addr, freeaddrinfo);
 
         std::vector<IPAddress> addresses;
-        for (const auto * ai = addr; ai != nullptr; ai = ai->ai_next)
+        for (const auto* ai = addr; ai != nullptr; ai = ai->ai_next)
         {
             IPAddress ip_address;
             ip_address.storage_ = *addr->ai_addr;
@@ -87,20 +87,23 @@ namespace net
         return addresses;
     }
 
-    void IPAddress::set_port(uint16_t port)
+    void IPAddress::set_port(const uint16_t port)
     {
         // Update the member variable
         port_ = port;
 
         // Update the port in the sockaddr structure based on the address family
-        switch (get_sockaddr()->sa_family) {
-            case AF_INET: {
+        switch (get_sockaddr()->sa_family)
+        {
+            case AF_INET:
+            {
                 // For IPv4, cast to sockaddr_in and set the port
                 auto* addr_in = reinterpret_cast<sockaddr_in*>(&storage_);
                 addr_in->sin_port = htons(port);  // Convert to network byte order
                 break;
             }
-            case AF_INET6: {
+            case AF_INET6:
+            {
                 // For IPv6, cast to sockaddr_in6 and set the port
                 auto* addr_in6 = reinterpret_cast<sockaddr_in6*>(&storage_);
                 addr_in6->sin6_port = htons(port);  // Convert to network byte order
@@ -108,12 +111,12 @@ namespace net
             }
             default:
                 // This should never happen if the IPAddress was properly initialized
-                    throw std::runtime_error("Invalid address family in IPAddress::set_port");
+                throw std::runtime_error("Invalid address family in IPAddress::set_port");
         }
     }
 
 
-    std::string get_ip_port_as_string(const sockaddr_in &client_addr)
+    std::string get_ip_port_as_string(const sockaddr_in& client_addr)
     {
         char ip_buffer[INET_ADDRSTRLEN];
 
@@ -128,7 +131,7 @@ namespace net
         return std::format("{}:{}", ip_buffer, port);
     }
 
-    int start_listen(std::string_view ip_address, uint16_t port, const TCPListener::ListenOptions &listen_options)
+    int start_listen(std::string_view ip_address, uint16_t port, const TCPServer::ListenOptions& listen_options)
     {
         const auto ipaddr = IPAddress::from_string(ip_address, port);
         auto server_fd = socket(ipaddr.get_sockaddr()->sa_family, SOCK_STREAM, 0);
@@ -140,12 +143,13 @@ namespace net
         spdlog::debug("created socket {}", server_fd);
 
         // Handle socket options with error checking
-        auto set_socket_option = [server_fd](int level, int optname, const void* optval, socklen_t optlen) {
-            if (setsockopt(server_fd, level, optname, optval, optlen) < 0) {
+        auto set_socket_option = [server_fd](int level, int optname, const void* optval, socklen_t optlen)
+        {
+            if (setsockopt(server_fd, level, optname, optval, optlen) < 0)
+            {
                 auto err = errno;
                 close(server_fd);
-                throw std::system_error(err, std::system_category(),
-                    "failed to set socket option: " + std::string(strerror(err)));
+                throw std::system_error(err, std::system_category(), "failed to set socket option: " + std::string(strerror(err)));
             }
         };
 
@@ -180,14 +184,14 @@ namespace net
         return server_fd;
     }
 
-    TCPListener::TCPListener(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options, const std::string_view ip_address, const uint16_t port) :
+    TCPServer::TCPServer(std::shared_ptr<IoContextBase> io_context, const ListenOptions& listen_options, const std::string_view ip_address, const uint16_t port) :
         server_fd_(start_listen(ip_address, port, listen_options)), io_context_(std::move(io_context)), ip_address_(ip_address), port_(port)
     {
         spdlog::debug("listening on socket");
     }
 
-    TCPListener::TCPListener(const bool enable_submission_async, const size_t io_uring_kernel_threads, const size_t io_queue_depth, const ListenOptions &listen_options, std::string_view ip_address,
-                             const uint16_t port) : server_fd_(start_listen(ip_address, port, listen_options)), ip_address_(ip_address), port_(port)
+    TCPServer::TCPServer(const bool enable_submission_async, const size_t io_uring_kernel_threads, const size_t io_queue_depth, const ListenOptions& listen_options, std::string_view ip_address,
+                         const uint16_t port) : server_fd_(start_listen(ip_address, port, listen_options)), ip_address_(ip_address), port_(port)
     {
         if (enable_submission_async)
         {
@@ -199,17 +203,17 @@ namespace net
         }
     }
 
-    async_simple::coro::Lazy<std::expected<TcpStream, AioError>> TCPListener::async_accept()
+    async_simple::coro::Lazy<std::expected<TcpStream, AioError>> TCPServer::async_accept()
     {
         sockaddr_in client_addr{};
         socklen_t client_addr_len = sizeof(client_addr);
-        int client_fd = co_await io_context_->async_accept(server_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+        int client_fd = co_await io_context_->async_accept(server_fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
         if (client_fd < 0)
         {
             spdlog::error("failed to accept connection: {}", strerror(-client_fd));
             co_return std::unexpected(from_errno(-client_fd));
         }
-        auto stream = TcpStream{client_fd, io_context_, ip_address_, get_ip_port_as_string(client_addr)};
+        auto stream = TcpStream{client_fd, io_context_, get_ip_port_as_string(client_addr), std::format("{}:{}", ip_address_, port_)};
         co_return std::move(stream);
     }
 }  // namespace net

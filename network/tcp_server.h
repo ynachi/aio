@@ -2,8 +2,8 @@
 // Created by ulozaka on 12/29/24.
 //
 
-#ifndef TCPLISTENER_H
-#define TCPLISTENER_H
+#ifndef TCPSERVER_H
+#define TCPSERVER_H
 #include <expected>
 #include <memory>
 #include <netinet/in.h>
@@ -35,16 +35,13 @@ namespace net
         [[nodiscard]] std::string to_string() const { return std::format("{}:{}", address_, port_); }
 
         // Get a pointer to the sockaddr for use in socket calls
-        sockaddr* get_sockaddr() {
-            return &storage_;
-        }
+        sockaddr *get_sockaddr() { return &storage_; }
 
-        [[nodiscard]] const sockaddr* get_sockaddr() const {
-            return &storage_;
-        }
+        [[nodiscard]] const sockaddr *get_sockaddr() const { return &storage_; }
     };
 
-    class TCPListener
+
+    class TCPServer
     {
         // TODO explicitly implement move constructor and move assignment operator
         int server_fd_ = -1;
@@ -62,16 +59,21 @@ namespace net
             bool set_non_blocking = true;
         };
 
-        TCPListener() = delete;
-        TCPListener(const TCPListener &) = delete;
-        TCPListener &operator=(const TCPListener &) = delete;
+        TCPServer() = delete;
+        TCPServer(const TCPServer &) = delete;
+        // forbid copy assignment
+        TCPServer &operator=(const TCPServer &) = delete;
+        // forbid move assignment
+        TCPServer &operator=(TCPServer &&) = delete;
 
-        ~TCPListener()
+        ~TCPServer()
         {
             if (server_fd_ != -1)
             {
                 close(server_fd_);
             }
+            // shutdown is idempotent, it is safe to call it without checking
+            io_context_->shutdown();
         }
 
         /**
@@ -94,9 +96,14 @@ namespace net
          * shared, ensuring the resource remains valid during the lifetime of the
          * TCPListener.
          */
-        explicit TCPListener(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
+        explicit TCPServer(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
 
-        TCPListener(TCPListener &&other) noexcept : server_fd_(other.server_fd_), io_context_(std::move(other.io_context_)) { other.server_fd_ = -1; }
+        TCPServer(TCPServer &&other) noexcept : server_fd_(other.server_fd_), io_context_(std::move(other.io_context_))
+        {
+            other.server_fd_ = -1;
+            ip_address_ = std::move(other.ip_address_);
+            port_ = other.port_;
+        }
 
         /**
          * @brief Constructs a TCPListener object and initializes the I/O context.
@@ -122,7 +129,7 @@ namespace net
          * configured with the specified `io_queue_depth` and
          * `io_uring_kernel_threads`.
          */
-        TCPListener(bool enable_submission_async, size_t io_uring_kernel_threads, size_t io_queue_depth, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
+        TCPServer(bool enable_submission_async, size_t io_uring_kernel_threads, size_t io_queue_depth, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
 
         // @TODO: return an integer error code for now, return a true error struct
         // later
@@ -130,19 +137,10 @@ namespace net
 
         void run_event_loop() const { io_context_->start_ev_loop(256); }
 
-        // // close the server and return the status code
-        // int close();
-        // // move assignment operator
-        // TCPListener &operator=(TCPListener &&other) noexcept
-        // {
-        //     if (this != &other) {
-        //         close();
-        //         server_fd_ = other.server_fd_;
-        //         io_context_ = std::move(other.io_context_);
-        //         other.server_fd_ = -1;
-        //     }
-        //     return *this;
-        // }
+        // close the server and return the status code
+        void shutdown() const { io_context_->shutdown(); }
+
+        [[nodiscard]] int get_fd() const { return server_fd_; }
     };
 }  // namespace net
-#endif  // TCPLISTENER_H
+#endif  // TCPSERVER_H
