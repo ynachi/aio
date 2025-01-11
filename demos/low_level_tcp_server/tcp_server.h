@@ -4,7 +4,7 @@
 
 #ifndef TCP_SERVER_H
 #define TCP_SERVER_H
-#include "io_context/io_uring_ctx.h"
+#include "io_context/uring_context.h"
 
 //@TODO add some probe
 // Add backpressure to the server
@@ -15,7 +15,7 @@
 class TcpServer
 {
     int server_fd{0};
-    IoUringContext<false> io_uring_ctx;
+    aio::IoUringContext io_uring_ctx{4096, 8};
     bool running_{true};
     std::string ip_address_;
     uint16_t port_{0};

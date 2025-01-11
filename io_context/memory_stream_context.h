@@ -13,7 +13,7 @@
  * Memory stream context for testing purposes.
  * Not suitable for files, only for sockets or steam based FD where writes can only happen at the end.
  */
-class MemoryStreamContext : public IoContextBase
+class MemoryStreamContext : public aio::IoContextBase
 {
 public:
     struct Condition
@@ -65,7 +65,7 @@ public:
 
     void shutdown() override { buffers_.clear(); }
 
-    void start_ev_loop(size_t /*batch_size*/) override
+    void run(size_t /*batch_size*/) override
     {
         // No real loop needed, everything is in-memory
     }
