@@ -65,7 +65,7 @@ public:
 
     void shutdown() override { buffers_.clear(); }
 
-    void start_ev_loop(size_t /*batch_size*/) override
+    void run(size_t /*batch_size*/) override
     {
         // No real loop needed, everything is in-memory
     }

@@ -7,6 +7,7 @@
 #include <async_simple/coro/SyncAwait.h>
 #include <netinet/in.h>
 #include <spdlog/spdlog.h>
+#include <thread>
 #include <utility>
 
 async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext<false> &context)
@@ -136,6 +137,8 @@ void TcpServer::run()
     async_accept_connections().start([](auto &&) {});
     while (running_)
     {
+        //std::jthread jthread([this] { io_uring_ctx.process_completions_wait(1024); });
+
         io_uring_ctx.process_completions_wait(2048);
     }
 }

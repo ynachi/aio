@@ -6,7 +6,6 @@
 #include <csignal>
 #include <spdlog/spdlog.h>
 
-#include "core/errors.h"
 #include "network/tcp_server.h"
 using namespace net;
 async_simple::coro::Lazy<> handle_client(TcpStream client_stream)  // Take by value
@@ -54,7 +53,7 @@ async_simple::coro::Lazy<> accept_connections(TCPServer& listener)
         auto maybe_stream = co_await listener.async_accept();
         if (!maybe_stream)
         {
-            spdlog::error("error accepting connection: {}", to_string(maybe_stream.error()));
+            spdlog::error("error accepting connection: {}", maybe_stream.error().message());
             continue;
         }
 
@@ -81,13 +80,14 @@ async_simple::coro::Lazy<> accept_connections(TCPServer& listener)
     }
 }
 
+
 int main()
 {
     spdlog::set_level(spdlog::level::info);
-    auto listener = TCPServer(false, 0, 4096, TCPServer::ListenOptions{}, "127.0.0.1", 8080);
+    auto listener = TCPServer(false, 4, 4096, TCPServer::ListenOptions{}, "127.0.0.1", 8080);
     accept_connections(listener).start([](auto&&) {});
     listener.run_event_loop();
-    // signal(SIGINT, [&] { listener.stop(); });
+    //signal(SIGINT, handle_signal);
 
     return 0;
 }

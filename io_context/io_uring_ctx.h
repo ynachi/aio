@@ -133,7 +133,7 @@ public:
         }
 
         io_uring_params params{};
-        params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER | IORING_SETUP_TASKRUN_FLAG;
+        // params.flags |= IORING_SETUP_COOP_TASKRUN  | IORING_SETUP_TASKRUN_FLAG;
 
         const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params);
         if (ret < 0)
@@ -347,11 +347,41 @@ public:
         co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
     }
 
-    void start_ev_loop(const size_t batch_size) override
+    void run(const size_t batch_size) override
     {
-        while (!is_shutdown())
+        bool expected = false;
+        if (!running_.compare_exchange_strong(expected, true))
+        {
+            spdlog::debug("IoUringContext::run the event loop is already running");
+            return;
+        }
+
+        while (!running_)
         {
             process_completions_wait(batch_size);
+        }
+    }
+
+    // run the event loop without batching completions. Can wait for completions or not
+    void run(bool wait)
+    {
+        bool expected = false;
+        if (!running_.compare_exchange_strong(expected, true))
+        {
+            spdlog::debug("IoUringContext::run the event loop is already running");
+            return;
+        }
+
+        while (running_)
+        {
+            if (wait)
+            {
+                process_completions_wait();
+            }
+            else
+            {
+                process_completions();
+            }
         }
     }
 };
