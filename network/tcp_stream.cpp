@@ -10,32 +10,31 @@
 #include <cstring>
 #include <expected>
 #include <netdb.h>
-#include <optional>
 #include <spdlog/spdlog.h>
 #include <vector>
 
 namespace net
 {
     TcpStream::TcpStream(TcpStream&& other) noexcept :
-    fd_(other.fd_),
-    io_context_(std::move(other.io_context_)),
-    local_address_(std::move(other.local_address_)),
-    remote_address_(std::move(other.remote_address_)),
-    options_(other.options_)
+        fd_(other.fd_), io_context_(std::move(other.io_context_)), local_endpoint_(std::move(other.local_endpoint_)), remote_endpoint_(std::move(other.remote_endpoint_)), options_(other.options_)
     {
         other.fd_ = -1;  // Ensure the moved-from stream won't close our fd
         spdlog::debug("TcpStream move constructor fd: {}", fd_);
     }
 
-    TcpStream& TcpStream::operator=(TcpStream&& other) noexcept {
-        if (this != &other) {
-            close();  // Close our current fd if we have one
+    TcpStream& TcpStream::operator=(TcpStream&& other) noexcept
+    {
+        if (this != &other)
+        {
+            // Close our current fd if we have one
+            close();
             fd_ = other.fd_;
             io_context_ = std::move(other.io_context_);
-            local_address_ = std::move(other.local_address_);
-            remote_address_ = std::move(other.remote_address_);
+            local_endpoint_ = std::move(other.local_endpoint_);
+            remote_endpoint_ = std::move(other.remote_endpoint_);
             options_ = other.options_;
-            other.fd_ = -1;  // Ensure the moved-from stream won't close our fd
+            // Ensure the moved-from stream won't close our fd
+            other.fd_ = -1;
             spdlog::debug("TcpStream move assignment fd: {}", fd_);
         }
         return *this;
