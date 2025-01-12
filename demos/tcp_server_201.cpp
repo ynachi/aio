@@ -8,8 +8,8 @@
 
 #include "core/errors.h"
 #include "network/tcp_server.h"
-using namespace net;
-async_simple::coro::Lazy<> handle_client(TcpStream client_stream)  // Take by value
+using namespace aio;
+async_simple::coro::Lazy<> handle_client(::net::TcpStream client_stream)  // Take by value
 {
     try
     {
@@ -47,7 +47,7 @@ async_simple::coro::Lazy<> handle_client(TcpStream client_stream)  // Take by va
     spdlog::debug("finish processing session: {} (fd: {})", client_stream.local_endpoint(), client_stream.get_fd());
 }
 
-async_simple::coro::Lazy<> accept_connections(TCPServer& listener)
+async_simple::coro::Lazy<> accept_connections(aio::net::TCPServer& listener)
 {
     while (true)
     {
@@ -84,7 +84,7 @@ async_simple::coro::Lazy<> accept_connections(TCPServer& listener)
 int main()
 {
     spdlog::set_level(spdlog::level::info);
-    auto listener = TCPServer(false, 0, 4096, TCPServer::ListenOptions{}, "127.0.0.1", 8080);
+    auto listener = net::TCPServer(false, 6, 4096, aio::net::TCPServer::ListenOptions{}, "127.0.0.1", 8080);
     accept_connections(listener).start([](auto&&) {});
     listener.run_event_loop();
     // signal(SIGINT, [&] { listener.stop(); });

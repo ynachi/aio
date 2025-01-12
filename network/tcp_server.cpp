@@ -16,7 +16,7 @@
 #include "io_context/uring_context.h"
 #include "network/tcp_stream.h"
 
-namespace net
+namespace aio::net
 {
     addrinfo* get_addrinfo(std::string_view address, std::optional<uint16_t> port, int ai_flags)
     {
@@ -195,11 +195,11 @@ namespace net
     {
         if (enable_submission_async)
         {
-            io_context_ = IoUringContext<true>::make_shared(io_queue_depth, io_uring_kernel_threads);
+            io_context_ = IoUringContext::make_shared(io_queue_depth, io_uring_kernel_threads);
         }
         else
         {
-            io_context_ = IoUringContext<false>::make_shared(io_queue_depth, io_uring_kernel_threads);
+            io_context_ = IoUringContext::make_shared(io_queue_depth, io_uring_kernel_threads);
         }
     }
 

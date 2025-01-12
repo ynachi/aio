@@ -13,7 +13,7 @@
 #include <spdlog/spdlog.h>
 #include <vector>
 
-namespace net
+namespace aio::net
 {
     TcpStream::TcpStream(TcpStream&& other) noexcept :
         fd_(other.fd_), io_context_(std::move(other.io_context_)), local_endpoint_(std::move(other.local_endpoint_)), remote_endpoint_(std::move(other.remote_endpoint_)), options_(other.options_)

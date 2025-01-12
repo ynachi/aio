@@ -12,9 +12,7 @@
 #include "io_context/io_context.h"
 #include "tcp_stream.h"
 
-namespace aio
-{
-    namespace net
+    namespace aio::net
     {
         struct IPAddress
         {
@@ -145,5 +143,4 @@ namespace aio
             [[nodiscard]] int get_fd() const { return server_fd_; }
         };
     }  // namespace net
-}  // namespace aio
 #endif  // TCPSERVER_H

@@ -11,8 +11,7 @@
 #include <sys/socket.h>
 
 #include "io_context/io_context.h"
-using namespace aio;
-namespace net
+namespace aio::net
 {
     struct TCPStreamOptions
     {
@@ -110,7 +109,6 @@ namespace net
         }
     };
 
-}  // namespace net
-
+}  // namespace aio::net
 
 #endif  // TCP_STREAM_H
