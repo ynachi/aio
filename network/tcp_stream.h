@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 
 #include "io_context/io_context.h"
+using namespace aio;
 namespace net
 {
     struct TCPStreamOptions
