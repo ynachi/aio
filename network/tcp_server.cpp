@@ -13,7 +13,7 @@
 #include <spdlog/spdlog.h>
 
 #include "core/errors.h"
-#include "io_context/io_uring_ctx.h"
+#include "io_context/uring_context.h"
 #include "network/tcp_stream.h"
 
 namespace net

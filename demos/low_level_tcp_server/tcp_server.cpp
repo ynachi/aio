@@ -9,7 +9,8 @@
 #include <spdlog/spdlog.h>
 #include <utility>
 
-async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext<false> &context)
+using namespace aio;
+async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
 {
     try
     {
