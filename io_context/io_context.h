@@ -12,9 +12,6 @@ namespace aio
 {
     class IoContextBase : public std::enable_shared_from_this<IoContextBase>
     {
-        // wether the io context is running. Check to not run multiple times
-        std::atomic<bool> running_{false};
-
         // Derived classes should implement this method to do the actual shutdown
         virtual void do_shutdown() = 0;
 
@@ -105,6 +102,10 @@ namespace aio
          * @param batch_size The number of events to process in each iteration.
          */
         virtual void run(size_t batch_size) = 0;
+
+    protected:
+        // wether the io context is running. Check to not run multiple times
+        std::atomic<bool> running_{false};
     };
 }  // namespace aio
 

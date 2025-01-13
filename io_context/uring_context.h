@@ -6,6 +6,8 @@
 #define URING_CONTEXT_H
 #include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/coro/Lazy.h>
+#include <cassert>
+#include <cstddef>
 #include <liburing.h>
 #include <liburing/io_uring.h>
 #include <linux/version.h>
@@ -28,10 +30,8 @@ namespace aio
     class IoUringContext : public IoContextBase
     {
         io_uring uring_{};
-        size_t queue_size_ = 256;
+        size_t queue_size_;
         static constexpr int DEFAULT_IO_FLAGS = 0;
-        // io_uring_register_iowq_max_workers for both bounded and unbounded queues
-        size_t io_uring_max_kernel_workers_;
 
         struct Operation
         {
@@ -44,8 +44,6 @@ namespace aio
         template<typename PrepFn, typename... Args>
         async_simple::coro::Lazy<int> prepare_operation(PrepFn prep_fn, Args &&...args)
         {
-            auto op = std::make_unique<Operation>();
-
             io_uring_sqe *sqe = get_sqe();
             if (!sqe)
             {
@@ -53,12 +51,13 @@ namespace aio
                 co_return -EAGAIN;
             }
 
+            auto *op = new Operation();
+
             // Call the preparation function with the sqe and forwarded arguments
             prep_fn(sqe, std::forward<Args>(args)...);
-            sqe->flags |= IOSQE_ASYNC;
 
             // Set the user data to the operation pointer
-            sqe->user_data = reinterpret_cast<uint64_t>(op.get());
+            sqe->user_data = reinterpret_cast<uint64_t>(op);
 
             co_return co_await op->promise.getFuture();
         }
@@ -99,13 +98,16 @@ namespace aio
 
         void handle_cqe(io_uring_cqe *cqe)
         {
+            assert(cqe && "cqe must not be null");
             auto *op = reinterpret_cast<Operation *>(cqe->user_data);
             op->promise.setValue(cqe->res);
+            delete op;
             io_uring_cqe_seen(&uring_, cqe);
         }
 
         std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(const size_t batch_size)
         {
+            assert(batch_size != 0 && "batch_size must be greater than 0");
             if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0)
             {
                 return {num, cqes};
@@ -114,36 +116,31 @@ namespace aio
             return {1, get_cqe_wait()};
         }
 
-        void do_shutdown() override { io_uring_queue_exit(&uring_); }
-
-        static void check_kernel_features()
+        void shutdown_cleanup()
         {
-            io_uring_probe *probe = io_uring_get_probe();
-            if (!probe)
-            {
-                throw std::runtime_error("Failed to get io_uring probe");
-            }
+            process_completions();
+            io_uring_queue_exit(&uring_);
+        }
 
-            auto probe_guard = std::unique_ptr<io_uring_probe, decltype(&io_uring_free_probe)>(probe, &io_uring_free_probe);
+        void do_shutdown() override { shutdown_cleanup(); }
 
-            for (constexpr unsigned required_ops[] = {IORING_SETUP_COOP_TASKRUN, IORING_SETUP_SINGLE_ISSUER}; const auto op: required_ops)
+        static void check_kernel_6_plus()
+        {
+            if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
             {
-                if (!io_uring_opcode_supported(probe, op))
-                {
-                    throw std::runtime_error("Kernel doesn't support required io_uring features");
-                }
+                throw std::runtime_error("Kernel version must be 6.0.0 or higher");
             }
         }
 
     public:
-        IoUringContext(const size_t queue_size, const size_t io_threads) : queue_size_(queue_size), io_uring_max_kernel_workers_(io_threads)
+        IoUringContext(const size_t queue_size) : queue_size_(queue_size)
         {
-            if (queue_size_ == 0 || io_threads == 0)
+            if (queue_size_ == 0)
             {
                 throw std::invalid_argument("queue size and io threads must be greater than 0");
             }
 
-            //check_kernel_features();
+            check_kernel_6_plus();
 
             io_uring_params params{};
             params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
@@ -153,21 +150,14 @@ namespace aio
                 throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
             }
 
-            unsigned int max_workers[2] = {static_cast<unsigned int>(io_uring_max_kernel_workers_), static_cast<unsigned int>(io_uring_max_kernel_workers_)};
-
-            if (const int ret = io_uring_register_iowq_max_workers(&uring_, max_workers); ret < 0)
-            {
-                io_uring_queue_exit(&uring_);
-                throw std::system_error(-ret, std::system_category(), "io_uring_register_iowq_max_workers failed");
-            }
-
-            spdlog::info("IoUringContext initialized with {} queue size and {} threads", queue_size_, io_threads);
+            spdlog::info("IoUringContext initialized with {} queue size", queue_size_);
         }
 
         ~IoUringContext() override
         {
-            spdlog::debug("IoUringContext::deinit calling destructor IoUringContext");
-            io_uring_queue_exit(&uring_);
+            spdlog::debug("IoUringContext::deinit calling destructor IoUringContext, processing pending requests");
+            // process pending completions before exiting
+            shutdown_cleanup();
             spdlog::debug("IoUringContext::deinit io_uring exited");
         }
 
@@ -248,11 +238,13 @@ namespace aio
             {
                 auto *op = reinterpret_cast<Operation *>(cqe->user_data);
                 op->promise.setValue(cqe->res);
+                delete op;
                 io_uring_cqe_seen(&uring_, cqe);
             }
         }
 
         // like process_completions but waits for completions to be available
+        // wait for at least one completion
         void process_completions_wait()
         {
             // submit pending io requests first
@@ -285,6 +277,7 @@ namespace aio
             {
                 auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
                 op->promise.setValue(cqes[i]->res);
+                delete op;
             }
 
             // Mark the entire batch as seen
@@ -294,7 +287,7 @@ namespace aio
             }
         }
 
-        static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const size_t io_threads) { return std::make_shared<IoUringContext>(queue_size, io_threads); }
+        static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const int wait_timeout_ms) { return std::make_shared<IoUringContext>(queue_size); }
 
         /**
          * Asynchronously accepts a new connection on a server socket.
@@ -353,7 +346,7 @@ namespace aio
 
         void run(const size_t batch_size) override
         {
-            while (!is_shutdown())
+            while (running_)
             {
                 process_completions_wait(batch_size);
             }

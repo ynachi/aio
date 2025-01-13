@@ -15,14 +15,14 @@
 class TcpServer
 {
     int server_fd{0};
-    aio::IoUringContext io_uring_ctx{4096, 8};
+    aio::IoUringContext io_uring_ctx{4096};
     bool running_{true};
     std::string ip_address_;
     uint16_t port_{0};
 
 public:
     /// io_threads are native io_uring threads. Do not confuse with server worker treads
-    TcpServer(std::string ip_address, uint16_t port, size_t io_queue_depth, size_t io_threads);
+    TcpServer(std::string ip_address, uint16_t port, size_t io_queue_depth);
 
     ~TcpServer();
 
