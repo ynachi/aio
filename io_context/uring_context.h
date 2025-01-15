@@ -28,7 +28,7 @@ namespace aio
     class IoUringContext : public IoContextBase
     {
         io_uring uring_{};
-        size_t queue_size_ = 256;
+        size_t queue_size_;
         static constexpr int DEFAULT_IO_FLAGS = 0;
         // io_uring_register_iowq_max_workers for both bounded and unbounded queues
         size_t io_uring_max_kernel_workers_;
@@ -114,7 +114,12 @@ namespace aio
             return {1, get_cqe_wait()};
         }
 
-        void do_shutdown() override { io_uring_queue_exit(&uring_); }
+        void do_shutdown() override
+        {
+            // process pending requests first
+            process_completions();
+            io_uring_queue_exit(&uring_);
+        }
 
         static void check_kernel_features()
         {
@@ -143,7 +148,7 @@ namespace aio
                 throw std::invalid_argument("queue size and io threads must be greater than 0");
             }
 
-            //check_kernel_features();
+            // check_kernel_features();
 
             io_uring_params params{};
             params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
