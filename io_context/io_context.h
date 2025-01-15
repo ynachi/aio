@@ -86,8 +86,7 @@ namespace aio
         // Alternative clearer version:
         virtual void shutdown()
         {
-            bool was_running = true;
-            if (running_.compare_exchange_strong(was_running, false))
+            if (bool was_running = true; running_.compare_exchange_strong(was_running, false))
             {
                 do_shutdown();
             }
