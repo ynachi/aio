@@ -22,11 +22,15 @@ namespace aio
         void setup()
         {
             server_fd_ = create_socket(endpoint_.storage_.sa_family, SOCK_STREAM, 0);
+            spdlog::debug("server fd {}", server_fd_);
             set_socket_options(server_fd_, sock_opts_);
             bind();
+            running_ = true;
         }
 
     public:
+        // Add constructor that matches base class
+        TCPServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts) {}
         TCPServer() = delete;
         TCPServer(const TCPServer &) = delete;
         // forbid copy assignment
@@ -36,10 +40,17 @@ namespace aio
 
         async_simple::coro::Lazy<> accept()
         {
+            // start listening first
+            if (::listen(server_fd_, sock_opts_.kernel_backlog) < 0)
+            {
+                auto err = errno;
+                throw std::system_error(err, std::system_category(), "listen failed");
+            }
+
             T handler;
             // TCPServer will outlive this method so it is safe to pass a reference to the context to coroutines
-            auto &io_ctx = this->get_io_context();
-            while (running_)
+            auto &io_ctx = this->get_io_context_mut();
+            while (running_.load(std::memory_order_relaxed))
             {
                 sockaddr_in client_addr{};
                 socklen_t client_addr_len = sizeof(client_addr);
@@ -47,7 +58,8 @@ namespace aio
                 if (client_fd < 0)
                 {
                     spdlog::error("failed to accept connection: {}", strerror(-client_fd));
-                    throw std::system_error(errno, std::system_category(), "accept failed");
+                    continue;
+                    // throw std::system_error(errno, std::system_category(), "accept failed");
                 }
                 // process client here
                 spdlog::debug("got a new connection fd = {}", client_fd);
@@ -71,6 +83,7 @@ namespace aio
         ~TCPServer() override
         {
             // shutdown is idempotent, it is safe to call it without checking
+            spdlog::debug("TCP server stopped");
             io_context_.shutdown();
             if (server_fd_ != -1)
             {
@@ -78,8 +91,11 @@ namespace aio
             }
         }
 
-        // creates a io uring based TCP server
-        static TCPServer io_uring_server() {}
+        static TCPServer create(size_t io_ctx_queue_depth, std::string address, uint16_t port)
+        {
+            SocketOptions options{};
+            return TCPServer(io_ctx_queue_depth, address, port, options);
+        }
     };
 
 }  // namespace aio

@@ -14,7 +14,7 @@ namespace aio
     {
     public:
         virtual ~ConnectionHandler() = default;
-        virtual async_simple::coro::Lazy<> handle(int client_fd, aio::IoContextBase& io_context) = 0;
+        virtual async_simple::coro::Lazy<> handle(int client_fd, IoContextBase& io_context) = 0;
     };
 
     class EchoHandler final : public ConnectionHandler

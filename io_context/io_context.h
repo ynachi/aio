@@ -83,7 +83,6 @@ namespace aio
         /**
          * @brief Shutdown the io context, making it no longer process requests.
          */
-        // Alternative clearer version:
         virtual void shutdown()
         {
             if (bool was_running = true; running_.compare_exchange_strong(was_running, false))

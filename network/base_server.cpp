@@ -121,6 +121,12 @@ namespace aio
         }
     }
 
+    BaseServer::BaseServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions& sock_opts) :
+        io_context_(io_ctx_queue_depth), endpoint_(IPAddress::from_string(address, port)), sock_opts_(sock_opts)
+    {
+    }
+
+
     int BaseServer::create_socket(int domain, int type, int protocol)
     {
         int fd = socket(domain, type, protocol);
@@ -165,9 +171,9 @@ namespace aio
         if (::bind(server_fd_, endpoint_.get_sockaddr(), endpoint_.storage_size_) < 0)
         {
             auto err = errno;
-            spdlog::error("failed to bind socket to {}:{} : {}", endpoint_.address, endpoint_.port_, strerror(err));
+            spdlog::error("failed to bind socket to {}:{} : {}", endpoint_.address(), endpoint_.port_, strerror(err));
             throw std::system_error(err, std::system_category(), "bind failed");
         }
-        spdlog::debug("bound socket to {}:{}", endpoint_.address, endpoint_.port_);
+        spdlog::debug("bound socket to {}:{}", endpoint_.address(), endpoint_.port_);
     }
 }  // namespace aio

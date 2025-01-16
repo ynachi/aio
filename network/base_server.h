@@ -2,7 +2,6 @@
 #define BASE_SERVER_H
 
 #include <cstdint>
-#include <expected>
 #include <netdb.h>
 #include <sys/stat.h>
 
@@ -55,13 +54,16 @@ namespace aio
         SocketOptions sock_opts_;
 
     public:
+        // Create an instance of a base server. This server is not ready yet until you start it.
+        // for example, the socket is not yet initialized.
+        BaseServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions& sock_opts);
         BaseServer() = delete;
         // We do not want server to be copied
         BaseServer(const BaseServer&) = delete;
         // we do not want server to be moved
         BaseServer(BaseServer&&) = delete;
         BaseServer& operator=(const BaseServer&) = delete;
-        virtual ~BaseServer() = 0;
+        virtual ~BaseServer() = default;
 
         // Starts the server.
         virtual void start() = 0;
@@ -79,9 +81,9 @@ namespace aio
         // binds a socket to an address. This method throws in case of an error.
         void bind();
 
-        IoContextBase& get_io_context_mut() { return io_context_; }
+        IoUringContext& get_io_context_mut() { return io_context_; }
 
-        const IoContextBase& get_io_context() { return io_context_; }
+        const IoUringContext& get_io_context() { return io_context_; }
     };
 }  // namespace aio
 #endif  // BASE_SERVER_H
