@@ -77,6 +77,10 @@ namespace aio
                 close(server_fd_);
             }
         }
+
+        // creates a io uring based TCP server
+        static TCPServer io_uring_server() {}
     };
+
 }  // namespace aio
 #endif  // TCPSERVER_H
