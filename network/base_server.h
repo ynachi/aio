@@ -9,6 +9,48 @@
 
 namespace aio
 {
+    struct ClientFD
+    {
+        int fd;
+        std::string local_endpoint;
+        std::string remote_endpoint;
+
+        ClientFD(const ClientFD&) = delete;
+        ClientFD& operator=(const ClientFD&) = delete;
+
+        ClientFD(int fd_, std::string remote, std::string local) : fd(fd_), local_endpoint(std::move(local)), remote_endpoint(std::move(remote)) {}
+
+        ClientFD(ClientFD&& other) noexcept :
+            fd(std::exchange(other.fd, -1)),  // Use exchange to set other.fd to -1
+            local_endpoint(std::move(other.local_endpoint)), remote_endpoint(std::move(other.remote_endpoint))
+        {
+        }
+
+        ClientFD& operator=(ClientFD&& other) noexcept
+        {
+            if (this != &other)
+            {
+                if (fd != -1)
+                {
+                    close(fd);  // Close our current fd if we have one
+                }
+                fd = std::exchange(other.fd, -1);
+                local_endpoint = std::move(other.local_endpoint);
+                remote_endpoint = std::move(other.remote_endpoint);
+            }
+            return *this;
+        }
+
+        ~ClientFD()
+        {
+            if (fd != -1)
+            {
+                spdlog::debug("closing client fd {}", fd);
+                close(fd);
+            }
+        }
+    };
+
     struct IPAddress
     {
         sockaddr storage_{};
@@ -21,6 +63,9 @@ namespace aio
         static IPAddress from_string(std::string_view address, uint16_t port = 0);
         // resolve a hostname to an IP addresses. Performs both IPv4 and IPv6 resolution. This call is blocking.
         static std::vector<IPAddress> resolve(std::string_view address);
+
+        // get peer address
+        static std::string get_peer_address(const sockaddr_storage& addr);
 
         void set_port(uint16_t port);
 

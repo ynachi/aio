@@ -9,21 +9,6 @@
 
 namespace aio
 {
-    std::string get_ip_port_as_string(const sockaddr_in& client_addr)
-    {
-        char ip_buffer[INET_ADDRSTRLEN];
-
-        if (inet_ntop(AF_INET, &(client_addr.sin_addr), ip_buffer, INET_ADDRSTRLEN) == nullptr)
-        {
-            spdlog::error("inet_ntop failed: {}", strerror(-errno));
-            return "";
-        }
-
-        int port = ntohs(client_addr.sin_port);
-        spdlog::debug("got port {}", port);
-        return std::format("{}:{}", ip_buffer, port);
-    }
-
     addrinfo* get_addrinfo(std::string_view address, std::optional<uint16_t> port, int ai_flags)
     {
         addrinfo hints{};
@@ -47,6 +32,40 @@ namespace aio
             return nullptr;
         }
         return res;
+    }
+
+    std::string IPAddress::get_peer_address(const sockaddr_storage& addr)
+    {
+        char ip_str[INET6_ADDRSTRLEN];
+        uint16_t port = 0;
+
+        switch (addr.ss_family)
+        {
+            case AF_INET:
+            {
+                const auto* addr_in = reinterpret_cast<const sockaddr_in*>(&addr);
+                if (inet_ntop(AF_INET, &(addr_in->sin_addr), ip_str, sizeof(ip_str)) == nullptr)
+                {
+                    return "invalid-ipv4";
+                }
+                port = ntohs(addr_in->sin_port);
+                break;
+            }
+            case AF_INET6:
+            {
+                const auto* addr_in6 = reinterpret_cast<const sockaddr_in6*>(&addr);
+                if (inet_ntop(AF_INET6, &(addr_in6->sin6_addr), ip_str, sizeof(ip_str)) == nullptr)
+                {
+                    return "invalid-ipv6";
+                }
+                port = ntohs(addr_in6->sin6_port);
+                break;
+            }
+            default:
+                return "unknown-af";
+        }
+
+        return std::format("{}:{}", ip_str, port);
     }
 
     IPAddress IPAddress::from_string(std::string_view address, uint16_t port)

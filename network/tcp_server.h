@@ -9,7 +9,6 @@
 
 #include "base_server.h"
 #include "handlers.h"
-#include "io_context/io_context.h"
 
 namespace aio
 {
@@ -52,7 +51,7 @@ namespace aio
             auto &io_ctx = this->get_io_context_mut();
             while (running_.load(std::memory_order_relaxed))
             {
-                sockaddr_in client_addr{};
+                sockaddr_storage client_addr{};
                 socklen_t client_addr_len = sizeof(client_addr);
                 int client_fd = co_await io_ctx.async_accept(server_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
                 if (client_fd < 0)
@@ -63,7 +62,9 @@ namespace aio
                 }
                 // process client here
                 spdlog::debug("got a new connection fd = {}", client_fd);
-                handler.handle(client_fd, io_ctx).start([](auto &&) {});
+                auto client_endpoint = IPAddress::get_peer_address(client_addr);
+                ClientFD new_client_fd(client_fd, client_endpoint, this->endpoint_.to_string());
+                handler.handle(std::move(new_client_fd), io_ctx).start([client_endpoint](auto &&) { spdlog::debug("Handler completed for {}", client_endpoint); });
             }
         }
 
@@ -72,7 +73,7 @@ namespace aio
             auto &io_ctx = this->get_io_context_mut();
             // setup server
             setup();
-            // start lstening
+            // start listening
             accept().start([](auto &&) {});
             // start processing clients
             io_ctx.run(2048);

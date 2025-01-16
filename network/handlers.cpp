@@ -6,15 +6,15 @@
 
 namespace aio
 {
-    async_simple::coro::Lazy<> EchoHandler::handle(int client_fd, IoContextBase& io_context)
+    async_simple::coro::Lazy<> EchoHandler::handle(ClientFD client_fd, IoContextBase& io_context)
     {
-        char buffer[1024];
+        char buffer[BUFFER_SIZE];
         while (!io_context.is_shutdown())
         {
-            auto read_result = co_await io_context.async_read(client_fd, std::span(buffer), 0);
+            auto read_result = co_await io_context.async_read(client_fd.fd, std::span(buffer), 0);
             if (read_result <= 0) break;
 
-            auto write_result = co_await io_context.async_write(client_fd, std::span(buffer, read_result), 0);
+            auto write_result = co_await io_context.async_write(client_fd.fd, std::span(buffer, read_result), 0);
             if (write_result < 0) break;
         }
     }
