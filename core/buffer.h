@@ -6,7 +6,6 @@
 /// A growable, mutable buffer for reading and writing data.
 class Buffer
 {
-private:
     std::vector<char> data_;
     size_t read_pos_{0};
     size_t write_pos_{0};
@@ -22,13 +21,13 @@ public:
 
     void consume(size_t len) noexcept;
 
-    size_t available() const noexcept { return write_pos_ - read_pos_; }
+    [[nodiscard]] size_t available() const noexcept { return write_pos_ - read_pos_; }
 
-    bool empty() const noexcept { return read_pos_ == write_pos_; }
+    [[nodiscard]] bool empty() const noexcept { return read_pos_ == write_pos_; }
 
     void clear() noexcept { read_pos_ = write_pos_ = 0; }
 
-    size_t size() const noexcept { return write_pos_ - read_pos_; }
+    [[nodiscard]] size_t size() const noexcept { return write_pos_ - read_pos_; }
 
-    size_t capacity() const noexcept { return data_.size(); }
+    [[nodiscard]] size_t capacity() const noexcept { return data_.size(); }
 };

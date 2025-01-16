@@ -4,143 +4,100 @@
 
 #ifndef TCPSERVER_H
 #define TCPSERVER_H
-#include <expected>
-#include <memory>
-#include <netinet/in.h>
 
-#include "core/errors.h"
-#include "io_context/io_context.h"
-#include "tcp_stream.h"
+#include <concepts>
 
-    namespace aio::net
+#include "base_server.h"
+#include "handlers.h"
+
+namespace aio
+{
+    template<typename T>
+    concept DerivedFromHandler = std::derived_from<T, ConnectionHandler>;
+
+    template<DerivedFromHandler T>
+    class TCPServer final : public BaseServer
     {
-        struct IPAddress
+        void setup()
         {
-            sockaddr storage_{};
-            socklen_t storage_size_ = 0;
-            // original address string
-            std::string address_;
-            uint16_t port_ = 0;
+            server_fd_ = create_socket(endpoint_.storage_.sa_family, SOCK_STREAM, 0);
+            spdlog::debug("server fd {}", server_fd_);
+            set_socket_options(server_fd_, sock_opts_);
+            bind();
+            running_ = true;
+        }
 
-            // parse a string to an IP address
-            static IPAddress from_string(std::string_view address, uint16_t port = 0);
-            // resolve a hostname to an IP addresses. Performs both IPv4 and IPv6 resolution. This call is blocking.
-            static std::vector<IPAddress> resolve(std::string_view address);
+    public:
+        // Add constructor that matches base class
+        TCPServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts) {}
+        TCPServer() = delete;
+        TCPServer(const TCPServer &) = delete;
+        // forbid copy assignment
+        TCPServer &operator=(const TCPServer &) = delete;
+        // forbid move assignment
+        TCPServer &operator=(TCPServer &&) = delete;
 
-            void set_port(uint16_t port);
-
-            [[nodiscard]] std::string address() const { return address_; }
-            [[nodiscard]] uint16_t port() const { return port_; }
-
-            [[nodiscard]] std::string to_string() const { return std::format("{}:{}", address_, port_); }
-
-            // Get a pointer to the sockaddr for use in socket calls
-            sockaddr *get_sockaddr() { return &storage_; }
-
-            [[nodiscard]] const sockaddr *get_sockaddr() const { return &storage_; }
-        };
-
-
-        class TCPServer
+        async_simple::coro::Lazy<> accept()
         {
-            // TODO explicitly implement move constructor and move assignment operator
-            int server_fd_ = -1;
-            std::shared_ptr<IoContextBase> io_context_;
-            std::string ip_address_;
-            uint16_t port_{};
-
-        public:
-            struct ListenOptions
+            // start listening first
+            if (::listen(server_fd_, sock_opts_.kernel_backlog) < 0)
             {
-                bool reuse_addr = true;
-                bool reuse_port = true;
-                // how many pending connections can be queued up by the kernel
-                size_t kernel_backlog = 128;
-                bool set_non_blocking = true;
-            };
+                auto err = errno;
+                throw std::system_error(err, std::system_category(), "listen failed");
+            }
 
-            TCPServer() = delete;
-            TCPServer(const TCPServer &) = delete;
-            // forbid copy assignment
-            TCPServer &operator=(const TCPServer &) = delete;
-            // forbid move assignment
-            TCPServer &operator=(TCPServer &&) = delete;
-
-            ~TCPServer()
+            T handler;
+            // TCPServer will outlive this method so it is safe to pass a reference to the context to coroutines
+            auto &io_ctx = this->get_io_context_mut();
+            while (running_.load(std::memory_order_relaxed))
             {
-                if (server_fd_ != -1)
+                sockaddr_storage client_addr{};
+                socklen_t client_addr_len = sizeof(client_addr);
+                int client_fd = co_await io_ctx.async_accept(server_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+                if (client_fd < 0)
                 {
-                    close(server_fd_);
+                    spdlog::error("failed to accept connection: {}", strerror(-client_fd));
+                    continue;
+                    // throw std::system_error(errno, std::system_category(), "accept failed");
                 }
-                // shutdown is idempotent, it is safe to call it without checking
-                io_context_->shutdown();
+                // process client here
+                spdlog::debug("got a new connection fd = {}", client_fd);
+                auto client_endpoint = IPAddress::get_peer_address(client_addr);
+                ClientFD new_client_fd(client_fd, client_endpoint, this->endpoint_.to_string());
+                handler.handle(std::move(new_client_fd), io_ctx).start([client_endpoint](auto &&) { spdlog::debug("Handler completed for {}", client_endpoint); });
             }
+        }
 
-            /**
-             * @brief Constructs a TCPListener object with the provided I/O context.
-             *
-             * Initializes the TCPListener using an externally provided shared pointer to
-             * an I/O context, which implements the necessary asynchronous I/O operations.
-             *
-             * @param io_context A shared pointer to an IoContextBase instance that
-             * provides the asynchronous I/O functionality. This parameter is required and
-             * must not be nullptr.
-             * @param listen_options Unix socket options to set on the server fd (e.g.
-             * SO_REUSEADDR).
-             * @param ip_address The IP address to bind the server socket to.
-             * @param port The port number to bind the server socket to.
-             *
-             * @details The provided I/O context is stored internally and used by the
-             * TCPListener for managing asynchronous operations such as accepting
-             * connections and reading or writing data. Ownership of the context is
-             * shared, ensuring the resource remains valid during the lifetime of the
-             * TCPListener.
-             */
-            explicit TCPServer(std::shared_ptr<IoContextBase> io_context, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
+        void start() override
+        {
+            auto &io_ctx = this->get_io_context_mut();
+            // setup server
+            setup();
+            // start listening
+            accept().start([](auto &&) {});
+            // start processing clients
+            io_ctx.run(2048);
+        }
 
-            TCPServer(TCPServer &&other) noexcept : server_fd_(other.server_fd_), io_context_(std::move(other.io_context_))
+        void stop() override { this->get_io_context_mut().shutdown(); }
+
+        ~TCPServer() override
+        {
+            // shutdown is idempotent, it is safe to call it without checking
+            spdlog::debug("TCP server stopped");
+            io_context_.shutdown();
+            if (server_fd_ != -1)
             {
-                other.server_fd_ = -1;
-                ip_address_ = std::move(other.ip_address_);
-                port_ = other.port_;
+                close(server_fd_);
             }
+        }
 
-            /**
-             * @brief Constructs a TCPListener object and initializes the I/O context.
-             *
-             * Creates an instance of the TCPListener, configuring the I/O context based
-             * on the provided parameters indicating whether asynchronous submission
-             * queues (io_uring) should be enabled.
-             *
-             * @param enable_submission_async Specifies whether asynchronous submission
-             *        queues (io_uring) should be enabled. Defaults to false.
-             * @param io_uring_kernel_threads The number of kernel threads dedicated to
-             *        the io_uring context. Defaults to 0.
-             * @param io_queue_depth The depth of the I/O queue (number of entries).
-             *        Defaults to 128.
-             * @param listen_options Unix socket options to set on the server fd (e.g.
-             * SO_REUSEADDR).
-             * @param ip_address The IP address to bind the server socket to.
-             * @param port The port number to bind the server socket to.
-             *
-             * @details If `enable_submission_async` is true, an IoUringContext with
-             * asynchronous submission support is created. Otherwise, a standard
-             * IoUringContext without asynchronous submission is used. Both contexts are
-             * configured with the specified `io_queue_depth` and
-             * `io_uring_kernel_threads`.
-             */
-            TCPServer(bool enable_submission_async, size_t io_uring_kernel_threads, size_t io_queue_depth, const ListenOptions &listen_options, std::string_view ip_address, uint16_t port);
+        static TCPServer create(size_t io_ctx_queue_depth, std::string address, uint16_t port)
+        {
+            SocketOptions options{};
+            return TCPServer(io_ctx_queue_depth, address, port, options);
+        }
+    };
 
-            // @TODO: return an integer error code for now, return a true error struct
-            // later
-            async_simple::coro::Lazy<std::expected<TcpStream, AioError>> async_accept();
-
-            void run_event_loop() const { io_context_->run(256); }
-
-            // close the server and return the status code
-            void shutdown() const { io_context_->shutdown(); }
-
-            [[nodiscard]] int get_fd() const { return server_fd_; }
-        };
-    }  // namespace net
+}  // namespace aio
 #endif  // TCPSERVER_H

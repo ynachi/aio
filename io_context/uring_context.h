@@ -126,14 +126,14 @@ namespace aio
 
         static void check_kernel_6_plus()
         {
-            if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+            if constexpr (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
             {
                 throw std::runtime_error("Kernel version must be 6.0.0 or higher");
             }
         }
 
     public:
-        IoUringContext(const size_t queue_size) : queue_size_(queue_size)
+        explicit IoUringContext(const size_t queue_size) : queue_size_(queue_size)
         {
             if (queue_size_ == 0)
             {
@@ -258,7 +258,7 @@ namespace aio
 
         // like process_completions but waits for completions to be available and
         // process a batch of completions
-        void process_completions_wait(size_t batch_size)
+        void process_completions_wait(const size_t batch_size)
         {
             // Wait for at least one completion and submit pending ops
             if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
@@ -346,7 +346,15 @@ namespace aio
 
         void run(const size_t batch_size) override
         {
-            while (running_)
+            if (bool expected = false; !running_.compare_exchange_strong(expected, true))
+            {
+                spdlog::info("the io_context is already running");
+                return;
+            }
+
+            // At this point, we've atomically set running_ to true
+            // and we know we're the only thread that succeeded
+            while (running_.load(std::memory_order_relaxed))
             {
                 process_completions_wait(batch_size);
             }
