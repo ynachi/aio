@@ -141,10 +141,9 @@ namespace aio
     }
 
     BaseServer::BaseServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions& sock_opts) :
-        io_context_(io_ctx_queue_depth), endpoint_(IPAddress::from_string(address, port)), sock_opts_(sock_opts)
+        io_context_(io_ctx_queue_depth), endpoint_(IPAddress::from_string(address, port)), sock_opts_(sock_opts), io_ctx_queue_depth_(io_ctx_queue_depth)
     {
     }
-
 
     int BaseServer::create_socket(int domain, int type, int protocol)
     {
@@ -166,7 +165,7 @@ namespace aio
         return fd;
     }
 
-    void BaseServer::set_socket_options(int fd, const SocketOptions& options)
+    void BaseServer::set_socket_options(const int fd, const SocketOptions& options)
     {
         int option = 1;
 

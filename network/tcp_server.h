@@ -76,7 +76,7 @@ namespace aio
             // start listening
             accept().start([](auto &&) {});
             // start processing clients
-            io_ctx.run(2048);
+            io_ctx.run(this->io_ctx_queue_depth_);
         }
 
         void stop() override { this->get_io_context_mut().shutdown(); }
@@ -92,10 +92,44 @@ namespace aio
             }
         }
 
-        static TCPServer create(size_t io_ctx_queue_depth, std::string address, uint16_t port)
+        static TCPServer create(size_t io_ctx_queue_depth, std::string_view address, uint16_t port)
         {
             SocketOptions options{};
             return TCPServer(io_ctx_queue_depth, address, port, options);
+        }
+
+        static void worker(const size_t conn_queue_size, std::string_view host, const uint16_t port)
+        {
+            //@todo pass stop_token to server.run
+            try
+            {
+                auto server = TCPServer::create(conn_queue_size, host, port);
+                server.start();
+            }
+            catch (const std::exception &ex)
+            {
+                spdlog::error("worker thread error: {}", ex.what());
+                std::abort();
+            }
+        }
+
+        static void run_multi_threaded(const size_t conn_queue_size, std::string_view host, const uint16_t port, const size_t worker_num)
+        {
+            std::vector<std::jthread> threads;
+            threads.reserve(worker_num);
+
+            for (int i = 0; i < worker_num; ++i)
+            {
+                threads.emplace_back(worker, conn_queue_size, host, port);
+
+                if (worker_num <= std::jthread::hardware_concurrency())
+                {
+                    cpu_set_t cpuset;
+                    CPU_ZERO(&cpuset);
+                    CPU_SET(i, &cpuset);
+                    pthread_setaffinity_np(threads[i].native_handle(), sizeof(cpu_set_t), &cpuset);
+                }
+            }
         }
     };
 

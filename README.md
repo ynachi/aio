@@ -1,4 +1,5 @@
 # aio
+
 Let's experiment io_uring and async network programming in C++
 
 This is a work in progress. The goal is to create a simple and efficient async io library in C++ using io_uring.
@@ -8,6 +9,7 @@ machinery.
 # How to build
 
 ## First, install liburing 2.8 and pkg-config
+
 ```shell
 sudo apt install pkg-config
 wget https://github.com/axboe/liburing/archive/refs/tags/liburing-2.8.tar.gz -O - | tar -xvz
@@ -18,11 +20,13 @@ sudo make install
 ```
 
 ## Clone the repo with submodules
+
 ```shell
 git clone --recursive  https://github.com/ynachi/aio.git
 ```
 
 ## build
+
 ```shell
 # example, build debug
 cmake --workflow --preset debug
@@ -32,16 +36,18 @@ cmake --workflow --preset debug
 # Demos/examples
 
 This minimal version has been demoed with a simple echo server and a simple file read program.
-1. [echo server](./demos/low_level_tcp_server): demonstrates the usage of the low level io_uring wrapper to create an async TCP server.
+
+1. [echo server](./demos/low_level_tcp_server): demonstrates the usage of the low level io_uring wrapper to create an
+   async TCP server.
 2. [file read](./demos/char_count_low.cpp): demonstrates the usage of the low level io_uring wrapper to read a file.
-3. [echo_server_201](./demos/tcp_server_201.cpp): demonstrates the usage of higher level classes to build a TCP server. In this example, the user still need to run the event loop himself.
+3. [echo_server_202](./demos/tcp_server_202.cpp): demonstrates the usage of higher level classes to build a TCP server.
+   In this example, the user still need to run the event loop himself.
 
-
-
-Bemchmarks:  
+Bemchmarks:
 
 Example with apache benchmark on a simple echo server.:  
 The server running on a single core on AMD Ryzen 7 PRO 7840U with 64GB of DDR5 ram
+
 ```shell
 ➜  ~ ulimit -n 65535
 ➜  ~ ab -n 10000000 -c 1000 -k http://127.0.0.1:8080/

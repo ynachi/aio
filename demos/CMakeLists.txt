@@ -8,9 +8,6 @@ target_link_libraries(tcp_demo PRIVATE tcp_server io_context_lib async_simple::a
 add_executable(char_count_demo char_count_low.cpp)
 target_link_libraries(char_count_demo PRIVATE io_context_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 
-add_executable(srv201 tcp_server_201.cpp)
-target_link_libraries(srv201 PRIVATE io_context_lib network_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
-
 add_executable(srv202 tcp_server_202.cpp)
 target_link_libraries(srv202 PRIVATE io_context_lib network_lib async_simple::async_simple_static fmt::fmt spdlog::spdlog)
 

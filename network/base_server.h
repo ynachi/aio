@@ -96,6 +96,7 @@ namespace aio
         IoUringContext io_context_;
         std::atomic<bool> running_{false};
         IPAddress endpoint_;
+        size_t io_ctx_queue_depth_;
         SocketOptions sock_opts_;
 
     public:
