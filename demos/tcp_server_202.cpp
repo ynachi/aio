@@ -13,5 +13,9 @@ int main()
     // spdlog::debug("Starting io context run loop...");
     // server.start();
     // spdlog::debug("IO context run loop exited");
-    aio::TCPServer<aio::EchoHandler>::run_multi_threaded(19000, "127.0.0.1", 8080, 8);
+
+    // run multithreaded
+    // aio::TCPServer<aio::EchoHandler>::run_multi_threaded(19000, "127.0.0.1", 8080, 8);
+    // run single core
+    aio::TCPServer<aio::EchoHandler>::worker(19000, "127.0.0.1", 8080);
 }
