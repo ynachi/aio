@@ -145,7 +145,7 @@ namespace aio
     {
     }
 
-    int BaseServer::create_socket(int domain, int type, int protocol)
+    int BaseServer::create_socket(const int domain, const int type, int protocol)
     {
         int fd = socket(domain, type, protocol);
         if (fd < 0)
@@ -169,18 +169,24 @@ namespace aio
     {
         int option = 1;
 
-        if (int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)); ret < 0)
+        if (options.reuse_addr)
         {
-            auto err = errno;
-            spdlog::error("failed to set SO_REUSEADDR on the socket: {}", strerror(err));
-            throw std::system_error(err, std::system_category(), "failed to set SO_REUSEADDR on the socket");
+            if (const int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)); ret < 0)
+            {
+                auto err = errno;
+                spdlog::error("failed to set SO_REUSEADDR on the socket: {}", strerror(err));
+                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEADDR on the socket");
+            }
         }
 
-        if (int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &option, sizeof(option)); ret < 0)
+        if (options.reuse_port)
         {
-            auto err = errno;
-            spdlog::error("failed to set SO_REUSEPORT on the port: {}", strerror(err));
-            throw std::system_error(err, std::system_category(), "failed to set SO_REUSEPORT on the port");
+            if (int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &option, sizeof(option)); ret < 0)
+            {
+                auto err = errno;
+                spdlog::error("failed to set SO_REUSEPORT on the port: {}", strerror(err));
+                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEPORT on the port");
+            }
         }
     }
 
