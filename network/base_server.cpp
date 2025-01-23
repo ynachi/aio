@@ -145,7 +145,7 @@ namespace aio
     {
     }
 
-    int BaseServer::create_socket(const int domain, const int type, int protocol)
+    int BaseServer::create_socket(const int domain, const int type, const int protocol)
     {
         int fd = socket(domain, type, protocol);
         if (fd < 0)
