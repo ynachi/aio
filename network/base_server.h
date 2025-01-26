@@ -18,7 +18,7 @@ namespace aio
         ClientFD(const ClientFD&) = delete;
         ClientFD& operator=(const ClientFD&) = delete;
 
-        ClientFD(int fd_, std::string remote, std::string local) : fd(fd_), local_endpoint(std::move(local)), remote_endpoint(std::move(remote)) {}
+        ClientFD(const int fd_, std::string remote, std::string local) : fd(fd_), local_endpoint(std::move(local)), remote_endpoint(std::move(remote)) {}
 
         ClientFD(ClientFD&& other) noexcept :
             fd(std::exchange(other.fd, -1)),  // Use exchange to set other.fd to -1
@@ -85,16 +85,14 @@ namespace aio
     protected:
         struct SocketOptions
         {
+            bool keep_alive = false;
             bool reuse_addr = true;
             bool reuse_port = true;
-            // how many pending connections can be queued up by the kernel
-            size_t kernel_backlog = 128;
-            bool set_non_blocking = true;
+            bool no_delay = true;
         };
 
         int server_fd_ = -1;
         IoUringContext io_context_;
-        std::atomic<bool> running_{false};
         IPAddress endpoint_;
         size_t io_ctx_queue_depth_;
         SocketOptions sock_opts_;
@@ -114,7 +112,10 @@ namespace aio
 
         void stop_event_loop()
         {
-            cq_processing_thread_.request_stop();
+            if (!cq_processing_thread_.request_stop())
+            {
+                spdlog::error("server stop request failed");
+            }
             io_context_.shutdown();
         }
 
@@ -130,15 +131,12 @@ namespace aio
         BaseServer& operator=(const BaseServer&) = delete;
         virtual ~BaseServer() = default;
 
-        // Stops the server.
-        virtual void stop() = 0;
-
         // creates a socket and returns the file descriptor or an std::error_code
         // Supports IPv4 and IPv6. Error when cannot create socket
         static int create_socket(int domain, int type, int protocol);
 
         // sets socket options
-        static void set_socket_options(int fd, const SocketOptions& options);
+        void set_socket_options(const SocketOptions& options) const;
 
         // binds a socket to an address. This method throws in case of an error.
         void bind();

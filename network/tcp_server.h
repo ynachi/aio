@@ -8,35 +8,53 @@
 #include <expected>
 
 #include "base_server.h"
-#include "handlers.h"
 
 namespace aio
 {
     class TCPServer final : public BaseServer
     {
+        std::stop_source stop_source_;
+        int kernel_backlog_ = SOMAXCONN;
+
         void setup()
         {
             server_fd_ = create_socket(endpoint_.storage_.sa_family, SOCK_STREAM, 0);
-            spdlog::debug("server fd {}", server_fd_);
-            set_socket_options(server_fd_, sock_opts_);
+
+            set_socket_options(sock_opts_);
+
             bind();
-            if (::listen(server_fd_, SOMAXCONN) < 0)
+
+            // set non blocking
+            if (const int ret = fcntl(server_fd_, F_SETFL, O_NONBLOCK); ret < 0)
+            {
+                auto err = errno;
+                throw std::system_error(err, std::system_category(), "failed to set non-blocking on the socket");
+            }
+
+
+            if (::listen(server_fd_, kernel_backlog_) < 0)
             {
                 throw std::system_error(errno, std::system_category(), "listen failed");
             }
-            running_ = true;
+
             start_event_loop();
         }
 
-    public:
         // Add constructor that matches base class
-        TCPServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts) { setup(); }
+        TCPServer(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts)
+        {
+            setup();
+        }
+
+    public:
         TCPServer() = delete;
         TCPServer(const TCPServer &) = delete;
         // forbid copy assignment
         TCPServer &operator=(const TCPServer &) = delete;
         // forbid move assignment
         TCPServer &operator=(TCPServer &&) = delete;
+        // forbid move constructor
+        TCPServer(TCPServer &&) = delete;
 
         async_simple::coro::Lazy<std::expected<ClientFD, std::error_code>> accept()
         {
@@ -54,8 +72,6 @@ namespace aio
             co_return ClientFD(client_fd, client_endpoint, endpoint_.to_string());
         }
 
-        void stop() override { this->get_io_context_mut().shutdown(); }
-
         ~TCPServer() override
         {
             // shutdown is idempotent, it is safe to call it without checking
@@ -67,10 +83,9 @@ namespace aio
             }
         }
 
-        static std::unique_ptr<TCPServer> create(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts)
+        static std::unique_ptr<TCPServer> create(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions &sock_opts)
         {
-            auto server = std::make_unique<TCPServer>(io_ctx_queue_depth, address, port, sock_opts);
-            // server->setup();
+            auto server = std::unique_ptr<TCPServer>(new TCPServer(io_ctx_queue_depth, address, port, sock_opts));
             return server;
         }
 
