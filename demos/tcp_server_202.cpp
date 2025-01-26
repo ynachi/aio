@@ -7,7 +7,7 @@
 #include <network/tcp_server.h>
 int main()
 {
-    spdlog::set_level(spdlog::level::info);
+    spdlog::set_level(spdlog::level::debug);
     // auto server = aio::TCPServer<aio::EchoHandler>::create(19000, "127.0.0.1", 8080);
     // spdlog::info("Server started");
     // spdlog::debug("Starting io context run loop...");
@@ -15,7 +15,7 @@ int main()
     // spdlog::debug("IO context run loop exited");
 
     // run multithreaded
-    // aio::TCPServer<aio::EchoHandler>::run_multi_threaded(19000, "127.0.0.1", 8080, 8);
+    //aio::TCPServer<aio::EchoHandler>::run_multi_threaded(19000, "127.0.0.1", 8080, 8);
     // run single core
     aio::TCPServer<aio::EchoHandler>::worker(19000, "127.0.0.1", 8080);
 }

@@ -10,11 +10,10 @@
 #include <cstddef>
 #include <liburing.h>
 #include <liburing/io_uring.h>
-#include <linux/version.h>
 #include <memory>
 #include <spdlog/spdlog.h>
 #include <sys/socket.h>
-
+#include <sys/utsname.h>
 #include "io_context.h"
 
 namespace aio
@@ -31,6 +30,9 @@ namespace aio
     {
         io_uring uring_{};
         size_t queue_size_;
+        // thread used to process io_uring completion in the background
+        std::jthread cq_processing_tread_;
+        size_t cq_processing_batch_size_{256};
         static constexpr int DEFAULT_IO_FLAGS = 0;
 
         struct Operation
@@ -78,23 +80,23 @@ namespace aio
 
         static void prep_close_wrapper(io_uring_sqe *sqe, const int fd) { io_uring_prep_close(sqe, fd); }
 
-        std::pair<size_t, io_uring_cqe *> get_batch_cqes(const size_t batch_size) noexcept
-        {
-            io_uring_cqe *completion = nullptr;
-            auto ready_cqes = io_uring_peek_batch_cqe(&uring_, &completion, batch_size);
-            return {ready_cqes, completion};
-        }
+        // std::pair<size_t, io_uring_cqe *> get_batch_cqes(const size_t batch_size) noexcept
+        // {
+        //     io_uring_cqe *completion = nullptr;
+        //     auto ready_cqes = io_uring_peek_batch_cqe(&uring_, &completion, batch_size);
+        //     return {ready_cqes, completion};
+        // }
 
-        io_uring_cqe *get_cqe_wait()
-        {
-            io_uring_cqe *cqe = nullptr;
-            if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0)
-            {
-                spdlog::error("IoUringContext::get_cqe_wait failed to wait for completions: {}", strerror(-ret));
-                throw std::system_error(-ret, std::system_category(), "io_uring_wait_cqes failed");
-            }
-            return cqe;
-        }
+        // io_uring_cqe *get_cqe_wait()
+        // {
+        //     io_uring_cqe *cqe = nullptr;
+        //     if (const int ret = io_uring_wait_cqe(&uring_, &cqe); ret < 0)
+        //     {
+        //         spdlog::error("IoUringContext::get_cqe_wait failed to wait for completions: {}", strerror(-ret));
+        //         throw std::system_error(-ret, std::system_category(), "io_uring_wait_cqes failed");
+        //     }
+        //     return cqe;
+        // }
 
         void handle_cqe(io_uring_cqe *cqe)
         {
@@ -105,16 +107,16 @@ namespace aio
             io_uring_cqe_seen(&uring_, cqe);
         }
 
-        std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(const size_t batch_size)
-        {
-            assert(batch_size != 0 && "batch_size must be greater than 0");
-            if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0)
-            {
-                return {num, cqes};
-            }
-            // Fallback to blocking
-            return {1, get_cqe_wait()};
-        }
+        // std::pair<size_t, io_uring_cqe *> get_batch_cqes_or_wait(const size_t batch_size)
+        // {
+        //     assert(batch_size != 0 && "batch_size must be greater than 0");
+        //     if (auto [num, cqes] = get_batch_cqes(batch_size); num != 0)
+        //     {
+        //         return {num, cqes};
+        //     }
+        //     // Fallback to blocking
+        //     return {1, get_cqe_wait()};
+        // }
 
         void shutdown_cleanup()
         {
@@ -124,9 +126,23 @@ namespace aio
 
         void do_shutdown() override { shutdown_cleanup(); }
 
-        static void check_kernel_6_plus()
+        static void check_kernel_version()
         {
-            if constexpr (LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0))
+            utsname buf{};
+            if (uname(&buf) != 0)
+            {
+                throw std::runtime_error("Failed to get kernel version");
+            }
+
+            std::string release(buf.release);
+            size_t dot_pos = release.find('.');
+            if (dot_pos == std::string::npos)
+            {
+                throw std::runtime_error("Failed to parse kernel version");
+            }
+
+            int major = std::stoi(release.substr(0, dot_pos));
+            if (major < 6)
             {
                 throw std::runtime_error("Kernel version must be 6.0.0 or higher");
             }
@@ -140,7 +156,7 @@ namespace aio
                 throw std::invalid_argument("queue size and io threads must be greater than 0");
             }
 
-            check_kernel_6_plus();
+            check_kernel_version();
 
             io_uring_params params{};
             params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
@@ -151,10 +167,13 @@ namespace aio
             }
 
             spdlog::info("IoUringContext initialized with {} queue size", queue_size_);
+
+            cq_processing_tread_ = std::jthread([this](const std::stop_token &stop_token) {run(stop_token);});
         }
 
         ~IoUringContext() override
         {
+            cq_processing_tread_.request_stop();
             spdlog::debug("IoUringContext::deinit calling destructor IoUringContext, processing pending requests");
             // process pending completions before exiting
             shutdown_cleanup();
@@ -245,16 +264,16 @@ namespace aio
 
         // like process_completions but waits for completions to be available
         // wait for at least one completion
-        void process_completions_wait()
-        {
-            // submit pending io requests first
-            submit_sqs_wait();
-            io_uring_cqe *cqe;
-            while (io_uring_peek_cqe(&uring_, &cqe) == 0)
-            {
-                handle_cqe(cqe);
-            }
-        }
+        // void process_completions_wait()
+        // {
+        //     // submit pending io requests first
+        //     submit_sqs_wait();
+        //     io_uring_cqe *cqe;
+        //     while (io_uring_peek_cqe(&uring_, &cqe) == 0)
+        //     {
+        //         handle_cqe(cqe);
+        //     }
+        // }
 
         // like process_completions but waits for completions to be available and
         // process a batch of completions
@@ -287,7 +306,7 @@ namespace aio
             }
         }
 
-        static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const int wait_timeout_ms) { return std::make_shared<IoUringContext>(queue_size); }
+        // static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const int wait_timeout_ms) { return std::make_shared<IoUringContext>(queue_size); }
 
         /**
          * Asynchronously accepts a new connection on a server socket.
@@ -344,20 +363,15 @@ namespace aio
             co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
         }
 
-        void run(const size_t batch_size) override
+        void run(const std::stop_token& stop_token)
         {
-            if (bool expected = false; !running_.compare_exchange_strong(expected, true))
-            {
-                spdlog::info("the io_context is already running");
-                return;
-            }
+            spdlog::debug("running io_uring event loop in a background thread");
 
-            // At this point, we've atomically set running_ to true
-            // and we know we're the only thread that succeeded
-            while (running_.load(std::memory_order_relaxed))
+            while (!stop_token.stop_requested())
             {
-                process_completions_wait(batch_size);
+                process_completions_wait(cq_processing_batch_size_);
             }
+            spdlog::debug("stop requested, shutting down the io_uring event loop");
         }
     };
 

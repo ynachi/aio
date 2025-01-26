@@ -5,7 +5,9 @@
 #ifndef TCPSERVER_H
 #define TCPSERVER_H
 
+#include <async_simple/coro/Generator.h>
 #include <concepts>
+#include <expected>
 
 #include "base_server.h"
 #include "handlers.h"
@@ -23,13 +25,22 @@ namespace aio
             server_fd_ = create_socket(endpoint_.storage_.sa_family, SOCK_STREAM, 0);
             spdlog::debug("server fd {}", server_fd_);
             set_socket_options(server_fd_, sock_opts_);
-            bind();
-            running_ = true;
+
+            // start listening first
+            if (::listen(server_fd_, sock_opts_.kernel_backlog) < 0)
+            {
+                auto err = errno;
+                throw std::system_error(err, std::system_category(), "listen failed");
+            }
+        }
+
+        // Initialize and setup server
+        TCPServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts)
+        {
+            setup();
         }
 
     public:
-        // Add constructor that matches base class
-        TCPServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts) {}
         TCPServer() = delete;
         TCPServer(const TCPServer &) = delete;
         // forbid copy assignment
@@ -37,15 +48,9 @@ namespace aio
         // forbid move assignment
         TCPServer &operator=(TCPServer &&) = delete;
 
-        async_simple::coro::Lazy<> accept()
+        // todo: use a generator
+        async_simple::coro::Generator<std::expected<ClientFD, std::error_code>> accept()
         {
-            // start listening first
-            if (::listen(server_fd_, sock_opts_.kernel_backlog) < 0)
-            {
-                auto err = errno;
-                throw std::system_error(err, std::system_category(), "listen failed");
-            }
-
             T handler;
             // TCPServer will outlive this method so it is safe to pass a reference to the context to coroutines
             auto &io_ctx = this->get_io_context_mut();
@@ -76,7 +81,7 @@ namespace aio
             // start listening
             accept().start([](auto &&) {});
             // start processing clients
-            io_ctx.run(this->io_ctx_queue_depth_);
+            // io_ctx.run(this->io_ctx_queue_depth_);
         }
 
         void stop() override { this->get_io_context_mut().shutdown(); }
@@ -92,10 +97,11 @@ namespace aio
             }
         }
 
-        static TCPServer create(size_t io_ctx_queue_depth, std::string_view address, uint16_t port)
+        static TCPServer bind(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts)
         {
-            SocketOptions options{};
-            return TCPServer(io_ctx_queue_depth, address, port, options);
+            auto server = TCPServer(io_ctx_queue_depth, address, port, sock_opts);
+            server.bind();
+            return server;
         }
 
         static void worker(const size_t conn_queue_size, std::string_view host, const uint16_t port)
