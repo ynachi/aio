@@ -5,7 +5,7 @@
 
 #include <async_simple/coro/SyncAwait.h>
 #include <network/tcp_server.h>
-// async_simple::coro::Lazy<> handle_client(aio::ClientFD client_fd, aio::IoUringContext& ctx);
+
 async_simple::coro::Lazy<> handle_client(aio::ClientFD client_fd, aio::IoUringContext& ctx)
 {
     char buffer[1024];

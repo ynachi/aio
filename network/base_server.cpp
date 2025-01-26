@@ -89,12 +89,12 @@ namespace aio
         return ip_address;
     }
 
-    std::vector<IPAddress> IPAddress::resolve(std::string_view dns_name)
+    std::vector<IPAddress> IPAddress::resolve(std::string_view address)
     {
-        const auto addr = get_addrinfo(dns_name, std::nullopt, AI_ALL | AI_CANONNAME);
+        const auto addr = get_addrinfo(address, std::nullopt, AI_ALL | AI_CANONNAME);
         if (addr == nullptr)
         {
-            spdlog::error("failed to resolve hostname: {}", dns_name);
+            spdlog::error("failed to resolve hostname: {}", address);
             throw std::runtime_error("failed to resolve hostname");
         }
         std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> addrinfo_guard(addr, freeaddrinfo);
@@ -105,7 +105,7 @@ namespace aio
             IPAddress ip_address;
             ip_address.storage_ = *addr->ai_addr;
             ip_address.storage_size_ = addr->ai_addrlen;
-            ip_address.address_ = dns_name;
+            ip_address.address_ = address;
             addresses.push_back(ip_address);
         }
 
