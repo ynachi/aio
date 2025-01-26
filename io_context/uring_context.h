@@ -261,8 +261,6 @@ namespace aio
             }
         }
 
-        static std::shared_ptr<IoUringContext> make_shared(const size_t queue_size, const int wait_timeout_ms) { return std::make_shared<IoUringContext>(queue_size); }
-
         /**
          * Asynchronously accepts a new connection on a server socket.
          *
@@ -318,7 +316,7 @@ namespace aio
             co_return co_await prepare_operation(prep_connect_wrapper, client_fd, addr, addrlen);
         }
 
-        void run(const size_t batch_size) override
+        void run()
         {
             if (bool expected = false; !running_.compare_exchange_strong(expected, true))
             {
@@ -330,7 +328,7 @@ namespace aio
             // and we know we're the only thread that succeeded
             while (running_.load(std::memory_order_relaxed))
             {
-                process_completions_wait(batch_size);
+                process_completions_wait(cq_processing_batch_size_);
             }
         }
     };

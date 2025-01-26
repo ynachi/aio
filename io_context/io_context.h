@@ -93,14 +93,6 @@ namespace aio
 
         bool is_shutdown() const { return !running_; }
 
-        /**
-         * @brief Start the event loop. The event loop needs to be run in order to process requests. It should be run in the same thread that created the io context.
-         * and process requests. This library assume everything is single-threaded. To achieve multi-threading, you need to create multiple io contexts and run them in separate threads.
-         * by leveraging, for example, the linux kernel network load balancing feature (SO_REUSEPORT).
-         * @param batch_size The number of events to process in each iteration.
-         */
-        virtual void run(size_t batch_size) = 0;
-
     protected:
         // wether the io context is running. Check to not run multiple times
         std::atomic<bool> running_{false};

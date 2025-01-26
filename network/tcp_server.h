@@ -5,7 +5,6 @@
 #ifndef TCPSERVER_H
 #define TCPSERVER_H
 
-#include <concepts>
 #include <expected>
 
 #include "base_server.h"
@@ -13,10 +12,6 @@
 
 namespace aio
 {
-    // template<typename T>
-    // concept DerivedFromHandler = std::derived_from<T, ConnectionHandler>;
-    //
-    // template<DerivedFromHandler T>
     class TCPServer final : public BaseServer
     {
         void setup()
@@ -59,17 +54,6 @@ namespace aio
             co_return ClientFD(client_fd, client_endpoint, endpoint_.to_string());
         }
 
-        void start() override
-        {
-            auto &io_ctx = this->get_io_context_mut();
-            // setup server
-            setup();
-            // start listening
-            accept().start([](auto &&) {});
-            // start processing clients
-            io_ctx.run(this->io_ctx_queue_depth_);
-        }
-
         void stop() override { this->get_io_context_mut().shutdown(); }
 
         ~TCPServer() override
@@ -82,12 +66,6 @@ namespace aio
                 close(server_fd_);
             }
         }
-
-        // static TCPServer create(size_t io_ctx_queue_depth, std::string_view address, uint16_t port)
-        // {
-        //     SocketOptions options{};
-        //     return TCPServer(io_ctx_queue_depth, address, port, options);
-        // }
 
         static std::unique_ptr<TCPServer> create(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions &sock_opts)
         {

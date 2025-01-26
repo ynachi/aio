@@ -65,11 +65,6 @@ public:
 
     void shutdown() override { buffers_.clear(); }
 
-    void run(size_t /*batch_size*/) override
-    {
-        // No real loop needed, everything is in-memory
-    }
-
 private:
     void do_shutdown() override {}
     async_simple::coro::Mutex mutex_;

@@ -130,9 +130,6 @@ namespace aio
         BaseServer& operator=(const BaseServer&) = delete;
         virtual ~BaseServer() = default;
 
-        // Starts the server.
-        virtual void start() = 0;
-
         // Stops the server.
         virtual void stop() = 0;
 
