@@ -98,6 +98,25 @@ namespace aio
         IPAddress endpoint_;
         size_t io_ctx_queue_depth_;
         SocketOptions sock_opts_;
+        std::jthread cq_processing_thread_;
+
+        void start_event_loop(size_t batch_size = 256)
+        {
+            cq_processing_thread_ = std::jthread(
+                    [this, batch_size](std::stop_token stop_token)
+                    {
+                        while (!stop_token.stop_requested())
+                        {
+                            io_context_.process_completions_wait(batch_size);
+                        }
+                    });
+        }
+
+        void stop_event_loop()
+        {
+            cq_processing_thread_.request_stop();
+            io_context_.shutdown();
+        }
 
     public:
         // Create an instance of a base server. This server is not ready yet until you start it.

@@ -143,7 +143,7 @@ namespace aio
             check_kernel_6_plus();
 
             io_uring_params params{};
-            params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
+            // params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
 
             if (const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params); ret < 0)
             {
