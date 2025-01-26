@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <asm-generic/socket.h>
+#include <netinet/tcp.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <system_error>
@@ -89,12 +90,12 @@ namespace aio
         return ip_address;
     }
 
-    std::vector<IPAddress> IPAddress::resolve(std::string_view dns_name)
+    std::vector<IPAddress> IPAddress::resolve(std::string_view address)
     {
-        const auto addr = get_addrinfo(dns_name, std::nullopt, AI_ALL | AI_CANONNAME);
+        const auto addr = get_addrinfo(address, std::nullopt, AI_ALL | AI_CANONNAME);
         if (addr == nullptr)
         {
-            spdlog::error("failed to resolve hostname: {}", dns_name);
+            spdlog::error("failed to resolve hostname: {}", address);
             throw std::runtime_error("failed to resolve hostname");
         }
         std::unique_ptr<addrinfo, decltype(&freeaddrinfo)> addrinfo_guard(addr, freeaddrinfo);
@@ -105,7 +106,7 @@ namespace aio
             IPAddress ip_address;
             ip_address.storage_ = *addr->ai_addr;
             ip_address.storage_size_ = addr->ai_addrlen;
-            ip_address.address_ = dns_name;
+            ip_address.address_ = address;
             addresses.push_back(ip_address);
         }
 
@@ -165,28 +166,37 @@ namespace aio
         return fd;
     }
 
-    void BaseServer::set_socket_options(const int fd, const SocketOptions& options)
+    void BaseServer::set_socket_options(const SocketOptions& opts) const
     {
-        int option = 1;
-
-        if (options.reuse_addr)
+        auto set_opt = [this](int level, int optname, int value)
         {
-            if (const int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)); ret < 0)
+            if (int ret = setsockopt(server_fd_, level, optname, &value, sizeof(value)); ret < 0)
             {
                 auto err = errno;
-                spdlog::error("failed to set SO_REUSEADDR on the socket: {}", strerror(err));
-                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEADDR on the socket");
+                spdlog::error("failed to set socket option: {}", strerror(err));
+                throw std::system_error(err, std::system_category(), "failed to set socket option");
             }
+        };
+
+        if (opts.keep_alive)
+        {
+            set_opt(SOL_SOCKET, SO_KEEPALIVE, 1);
+            spdlog::debug("set SO_KEEPALIVE on socket fd: {}", server_fd_);
         }
-
-        if (options.reuse_port)
+        if (opts.reuse_addr)
         {
-            if (int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &option, sizeof(option)); ret < 0)
-            {
-                auto err = errno;
-                spdlog::error("failed to set SO_REUSEPORT on the port: {}", strerror(err));
-                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEPORT on the port");
-            }
+            set_opt(SOL_SOCKET, SO_REUSEADDR, 1);
+            spdlog::debug("set SO_REUSEADDR on socket fd: {}", server_fd_);
+        }
+        if (opts.reuse_port)
+        {
+            set_opt(SOL_SOCKET, SO_REUSEPORT, 1);
+            spdlog::debug("set SO_REUSEPORT on socket fd: {}", server_fd_);
+        }
+        if (opts.no_delay)
+        {
+            set_opt(IPPROTO_TCP, TCP_NODELAY, 1);
+            spdlog::debug("set TCP_NODELAY on socket fd: {}", server_fd_);
         }
     }
 
