@@ -3,7 +3,6 @@
 
 #include <cstdint>
 #include <netdb.h>
-#include <sys/stat.h>
 
 #include "io_context/uring_context.h"
 
@@ -82,24 +81,15 @@ namespace aio
 
     class BaseServer
     {
-    protected:
+    public:
         struct SocketOptions
         {
+            bool keep_alive = false;
             bool reuse_addr = true;
             bool reuse_port = true;
-            // how many pending connections can be queued up by the kernel
-            size_t kernel_backlog = 128;
-            bool set_non_blocking = true;
+            bool no_delay = true;
         };
 
-        int server_fd_ = -1;
-        IoUringContext io_context_;
-        std::atomic<bool> running_{false};
-        IPAddress endpoint_;
-        size_t io_ctx_queue_depth_;
-        SocketOptions sock_opts_;
-
-    public:
         // Create an instance of a base server. This server is not ready yet until you start it.
         // for example, the socket is not yet initialized.
         BaseServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions& sock_opts);
@@ -111,9 +101,6 @@ namespace aio
         BaseServer& operator=(const BaseServer&) = delete;
         virtual ~BaseServer() = default;
 
-        // Starts the server.
-        virtual void start() = 0;
-
         // Stops the server.
         virtual void stop() = 0;
 
@@ -121,8 +108,8 @@ namespace aio
         // Supports IPv4 and IPv6. Error when cannot create socket
         static int create_socket(int domain, int type, int protocol);
 
-        // sets socket options
-        static void set_socket_options(int fd, const SocketOptions& options);
+        // sets socket options. This method throws in case of an error.
+        void set_socket_options(const SocketOptions& opts) const;
 
         // binds a socket to an address. This method throws in case of an error.
         void bind();
@@ -130,6 +117,13 @@ namespace aio
         IoUringContext& get_io_context_mut() { return io_context_; }
 
         const IoUringContext& get_io_context() { return io_context_; }
+
+    protected:
+        int server_fd_ = -1;
+        IoUringContext io_context_;
+        IPAddress endpoint_;
+        size_t io_ctx_queue_depth_;
+        SocketOptions sock_opts_;
     };
 }  // namespace aio
 #endif  // BASE_SERVER_H

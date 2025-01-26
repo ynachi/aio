@@ -2,6 +2,7 @@
 
 #include <arpa/inet.h>
 #include <asm-generic/socket.h>
+#include <netinet/tcp.h>
 #include <stdexcept>
 #include <sys/socket.h>
 #include <system_error>
@@ -9,7 +10,7 @@
 
 namespace aio
 {
-    addrinfo* get_addrinfo(std::string_view address, std::optional<uint16_t> port, int ai_flags)
+    addrinfo* get_addrinfo(const std::string_view address, const std::optional<uint16_t> port, const int ai_flags)
     {
         addrinfo hints{};
         addrinfo* res = nullptr;
@@ -141,8 +142,9 @@ namespace aio
     }
 
     BaseServer::BaseServer(size_t io_ctx_queue_depth, std::string_view address, uint16_t port, const SocketOptions& sock_opts) :
-        io_context_(io_ctx_queue_depth), endpoint_(IPAddress::from_string(address, port)), sock_opts_(sock_opts), io_ctx_queue_depth_(io_ctx_queue_depth)
+        io_context_(io_ctx_queue_depth), endpoint_(IPAddress::from_string(address, port)), io_ctx_queue_depth_(io_ctx_queue_depth), sock_opts_(sock_opts)
     {
+        spdlog::debug("Endpoint init - family: {}, size: {}, addr: {}", endpoint_.storage_.sa_family, endpoint_.storage_size_, endpoint_.to_string());
     }
 
     int BaseServer::create_socket(const int domain, const int type, const int protocol)
@@ -151,9 +153,11 @@ namespace aio
         if (fd < 0)
         {
             auto err = errno;
-            spdlog::error("failed to create socket: {}", strerror(-errno));
+            spdlog::error("failed to create socket: {}", strerror(err));
             throw std::system_error(err, std::system_category(), "socket failed");
         }
+        spdlog::debug("Socket created with fd: {}, domain: {}, type: {}, protocol: {}", fd, domain, type, protocol);
+
         // make sure we can accept both IPV4 and IPV6
         int option = 1;
         if (domain == AF_INET6 && setsockopt(fd, SOL_IPV6, IPV6_V6ONLY, &option, sizeof(option)) < 0)
@@ -165,39 +169,47 @@ namespace aio
         return fd;
     }
 
-    void BaseServer::set_socket_options(const int fd, const SocketOptions& options)
+    void BaseServer::set_socket_options(const SocketOptions& opts) const
     {
-        int option = 1;
-
-        if (options.reuse_addr)
+        auto set_opt = [this](int level, int optname, int value)
         {
-            if (const int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)); ret < 0)
+            if (int ret = setsockopt(server_fd_, level, optname, &value, sizeof(value)); ret < 0)
             {
                 auto err = errno;
-                spdlog::error("failed to set SO_REUSEADDR on the socket: {}", strerror(err));
-                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEADDR on the socket");
+                spdlog::error("failed to set socket option: {}", strerror(err));
+                throw std::system_error(err, std::system_category(), "failed to set socket option");
             }
+        };
+
+        if (opts.keep_alive)
+        {
+            set_opt(SOL_SOCKET, SO_KEEPALIVE, 1);
+            spdlog::debug("set SO_KEEPALIVE on socket fd: {}", server_fd_);
         }
-
-        if (options.reuse_port)
+        if (opts.reuse_addr)
         {
-            if (int ret = setsockopt(fd, SOL_SOCKET, SO_REUSEPORT, &option, sizeof(option)); ret < 0)
-            {
-                auto err = errno;
-                spdlog::error("failed to set SO_REUSEPORT on the port: {}", strerror(err));
-                throw std::system_error(err, std::system_category(), "failed to set SO_REUSEPORT on the port");
-            }
+            set_opt(SOL_SOCKET, SO_REUSEADDR, 1);
+            spdlog::debug("set SO_REUSEADDR on socket fd: {}", server_fd_);
+        }
+        if (opts.reuse_port)
+        {
+            set_opt(SOL_SOCKET, SO_REUSEPORT, 1);
+            spdlog::debug("set SO_REUSEPORT on socket fd: {}", server_fd_);
+        }
+        if (opts.no_delay)
+        {
+            set_opt(IPPROTO_TCP, TCP_NODELAY, 1);
+            spdlog::debug("set TCP_NODELAY on socket fd: {}", server_fd_);
         }
     }
+
 
     void BaseServer::bind()
     {
         if (::bind(server_fd_, endpoint_.get_sockaddr(), endpoint_.storage_size_) < 0)
         {
             auto err = errno;
-            spdlog::error("failed to bind socket to {}:{} : {}", endpoint_.address(), endpoint_.port_, strerror(err));
             throw std::system_error(err, std::system_category(), "bind failed");
         }
-        spdlog::debug("bound socket to {}:{}", endpoint_.address(), endpoint_.port_);
     }
 }  // namespace aio
