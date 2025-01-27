@@ -90,6 +90,7 @@ ninja_log
 .vs/
 build/
 cmake-build-*
+debug/
 
 # Clion
 .idea/
@@ -109,3 +110,10 @@ tests/file*.txt
 /home/ulozaka/codes/aio/tests/file.txt"
 
 compile_commands.json
+
+# Rust
+Cargo.lock
+/target
+dump.rdb
+go-benchmark.iml
+/testdata

@@ -53,8 +53,8 @@ func clientSession(clientID, numMessages int, host string, port int, wg *sync.Wa
 }
 
 func main() {
-	numClients := 1000
-	messagesPerClient := 10000
+	numClients := 100
+	messagesPerClient := 500
 	host := "127.0.0.1"
 	port := 8080
 
