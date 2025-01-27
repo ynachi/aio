@@ -41,14 +41,34 @@ namespace aio
         [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> write(std::span<const char> buffer) const;
 
         /// read as much as possible from the stream. This function will keep reading until the buffer is full or the stream is closed.
-        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> read_at_least(std::span<const char> buffer) const;
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> read_all(std::span<const char> buffer) const;
+
+        /// write as much as possible to the stream. This function will keep writing until the buffer is empty or the stream is closed.
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> write_all(std::span<const char> buffer) const;
+
+        /// readv from the stream. Perform a single readv call. May not read all the requested bytes even if the stream is not closed.
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> readv(const iovec* iov, int iovcnt) const;
+
+        /// writev to the stream. Perform a single writev call. May not write all the requested bytes even if the stream is not closed.
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> writev(const iovec* iov, int iovcnt) const;
+
+        /// Close the stream. This will close the underlying file descriptor.
+        void close()
+        {
+            if (fd_ != -1)
+            {
+                spdlog::debug("closing client fd {}", fd_);
+                ::close(fd_);
+                fd_ = -1;
+            }
+        }
 
         ~Stream()
         {
             if (fd_ != -1)
             {
                 spdlog::debug("closing client fd {}", fd_);
-                close(fd_);
+                ::close(fd_);
             }
         }
     };
