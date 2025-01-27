@@ -8,6 +8,7 @@
 #include <expected>
 
 #include "base_server.h"
+#include "stream.h"
 
 namespace aio
 {
@@ -56,7 +57,7 @@ namespace aio
         // forbid move constructor
         TCPServer(TCPServer &&) = delete;
 
-        async_simple::coro::Lazy<std::expected<ClientFD, std::error_code>> accept()
+        async_simple::coro::Lazy<std::expected<Stream, std::error_code>> accept()
         {
             sockaddr_storage client_addr{};
             socklen_t client_addr_len = sizeof(client_addr);
@@ -69,7 +70,7 @@ namespace aio
             }
 
             auto client_endpoint = IPAddress::get_peer_address(client_addr);
-            co_return ClientFD(client_fd, client_endpoint, endpoint_.to_string());
+            co_return Stream(client_fd, client_endpoint, endpoint_.to_string(), this->get_io_context_mut());
         }
 
         ~TCPServer() override
