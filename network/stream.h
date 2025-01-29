@@ -19,14 +19,14 @@ namespace aio
         int fd_{-1};
         std::string local_endpoint_;
         std::string remote_endpoint_;
-        IoUringContext& io_ctx_;  // Add reference to io context
+        IoContextBase& io_ctx_;  // Add reference to io context
 
     public:
         Stream(const Stream&) = delete;
         Stream& operator=(const Stream&) = delete;
         Stream& operator=(Stream&& other) noexcept = delete;
 
-        Stream(const int fd_, std::string remote, std::string local, IoUringContext& io_ctx) : fd_(fd_), local_endpoint_(std::move(local)), remote_endpoint_(std::move(remote)), io_ctx_(io_ctx) {}
+        Stream(const int fd_, std::string remote, std::string local, IoContextBase& io_ctx) : fd_(fd_), local_endpoint_(std::move(local)), remote_endpoint_(std::move(remote)), io_ctx_(io_ctx) {}
 
         Stream(Stream&& other) noexcept :
             fd_(std::exchange(other.fd_, -1)), local_endpoint_(std::move(other.local_endpoint_)), remote_endpoint_(std::move(other.remote_endpoint_)), io_ctx_(other.io_ctx_)
