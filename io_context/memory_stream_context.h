@@ -34,6 +34,52 @@ public:
         bool data_corruption = false;  // Simulate data corruption
     };
 
+    struct MemoryStreamStats
+    {
+        std::atomic_int64_t read_count = 0;
+        std::atomic_int64_t write_count = 0;
+        std::atomic_int64_t readv_count = 0;
+        std::atomic_int64_t writev_count = 0;
+        std::atomic_int64_t total_bytes_read = 0;
+        std::atomic_int64_t total_bytes_written = 0;
+
+        MemoryStreamStats() = default;
+
+        MemoryStreamStats(const MemoryStreamStats &other)
+        {
+            read_count.store(other.read_count.load());
+            write_count.store(other.write_count.load());
+            readv_count.store(other.readv_count.load());
+            writev_count.store(other.writev_count.load());
+            total_bytes_read.store(other.total_bytes_read.load());
+            total_bytes_written.store(other.total_bytes_written.load());
+        }
+
+        MemoryStreamStats &operator=(const MemoryStreamStats &other)
+        {
+            if (this != &other)
+            {
+                read_count.store(other.read_count.load());
+                write_count.store(other.write_count.load());
+                readv_count.store(other.readv_count.load());
+                writev_count.store(other.writev_count.load());
+                total_bytes_read.store(other.total_bytes_read.load());
+                total_bytes_written.store(other.total_bytes_written.load());
+            }
+            return *this;
+        }
+
+        void reset()
+        {
+            read_count = 0;
+            write_count = 0;
+            readv_count = 0;
+            writev_count = 0;
+            total_bytes_read = 0;
+            total_bytes_written = 0;
+        }
+    };
+
     MemoryStreamContext() = default;
     MemoryStreamContext(const MemoryStreamContext &) = delete;
     MemoryStreamContext(MemoryStreamContext &&) = delete;
@@ -52,6 +98,8 @@ public:
         co_return 0;
     }
 
+    MemoryStreamStats &get_stats(int fd) noexcept { return stats_[fd]; }
+    void reset_stats(int fd) noexcept { stats_[fd].reset(); }
     async_simple::coro::Lazy<> set_fd(int fd, std::vector<char> &&buffer) noexcept;
 
     async_simple::coro::Lazy<> set_condition(int fd, Condition &&condition) noexcept;
@@ -67,6 +115,7 @@ public:
 
 private:
     void do_shutdown() override {}
+    std::unordered_map<int, MemoryStreamStats> stats_;
     async_simple::coro::Mutex mutex_;
     int next_fd_{1000};
     std::unordered_map<int, std::vector<char>> buffers_;
