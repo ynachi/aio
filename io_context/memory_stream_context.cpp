@@ -1,10 +1,10 @@
+#include "io_context/memory_stream_context.h"
+
 #include <async_simple/coro/Lazy.h>
 #include <cerrno>
 #include <random>
 #include <spdlog/spdlog.h>
 #include <vector>
-
-#include "io_context/memory_stream_context.h"
 
 async_simple::coro::Lazy<int> MemoryStreamContext::async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen)
 {
@@ -39,7 +39,8 @@ async_simple::coro::Lazy<int> MemoryStreamContext::async_read(const int fd, std:
     // Simulate partial reads
     if (conditions_[fd].partial_read_write)
     {
-        to_copy = std::min(to_copy, buf.size() / 2);
+        // if size is 1, we will read 1 byte, otherwise we will read half of the buffer
+        to_copy = buf.size() == 1 ? 1 : std::min(to_copy, buf.size() / 2);
     }
     std::copy_n(storage.begin(), to_copy, buf.begin());
 
@@ -53,6 +54,11 @@ async_simple::coro::Lazy<int> MemoryStreamContext::async_read(const int fd, std:
     }
 
     storage.erase(storage.begin(), storage.begin() + static_cast<int64_t>(to_copy));
+
+    // Update stats
+    stats_[fd].total_bytes_read += static_cast<int64_t>(to_copy);
+    ++stats_[fd].read_count;
+
     co_return static_cast<int>(to_copy);
 }
 
@@ -71,10 +77,16 @@ async_simple::coro::Lazy<int> MemoryStreamContext::async_write(const int fd, std
     size_t write_len = buf.size();
     if (conditions_[fd].partial_read_write)
     {
-        write_len = std::min(write_len, buf.size() / 2);  // Simulate partial write
+        // if size is 1, we will write 1 byte, otherwise we will write half of the buffer
+        write_len = buf.size() == 1 ? 1 : std::min(write_len, buf.size() / 2);  // Simulate partial write
     }
 
     storage.insert(storage.end(), buf.begin(), buf.begin() + static_cast<int64_t>(write_len));
+
+    // Update stats
+    stats_[fd].total_bytes_written += static_cast<int64_t>(write_len);
+    ++stats_[fd].write_count;
+
     co_return static_cast<int>(buf.size());
 }
 
@@ -96,6 +108,10 @@ async_simple::coro::Lazy<int> MemoryStreamContext::async_readv(const int fd, con
             break;
         }
     }
+
+    // Update stats, Do not update bytes read as it is already updated in async_read
+    ++stats_[fd].readv_count;
+
     co_return static_cast<int>(total_read);
 }
 
@@ -117,6 +133,10 @@ async_simple::coro::Lazy<int> MemoryStreamContext::async_writev(int fd, const io
             break;
         }
     }
+
+    // Update stats, Do not update bytes written as it is already updated in async_write
+    ++stats_[fd].writev_count;
+
     co_return static_cast<int>(total_written);
 }
 
@@ -175,7 +195,7 @@ async_simple::coro::Lazy<> MemoryStreamContext::set_condition(int fd, Condition 
 }
 
 // Helper function to set random latency conditions for a file descriptor
-async_simple::coro::Lazy<>  MemoryStreamContext::set_random_latency(int fd, std::chrono::milliseconds low, std::chrono::milliseconds high) noexcept
+async_simple::coro::Lazy<> MemoryStreamContext::set_random_latency(int fd, std::chrono::milliseconds low, std::chrono::milliseconds high) noexcept
 {
     co_await mutex_.coScopedLock();
     if (!conditions_.contains(fd))
@@ -224,10 +244,11 @@ async_simple::coro::Lazy<> MemoryStreamContext::apply_latency(int fd) noexcept
 
 
 // Helper to register a FD to the in-memory context
-async_simple::coro::Lazy<>  MemoryStreamContext::set_fd(int fd, std::vector<char> &&buffer) noexcept
+async_simple::coro::Lazy<> MemoryStreamContext::set_fd(int fd, std::vector<char> &&buffer) noexcept
 {
     co_await mutex_.coScopedLock();
     buffers_[fd] = std::move(buffer);
     conditions_[fd] = Condition();
+    stats_.emplace(fd, MemoryStreamStats());
     spdlog::info("Buffer set for fd {}", fd);
 }

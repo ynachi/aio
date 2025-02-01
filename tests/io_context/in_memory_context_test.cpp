@@ -155,6 +155,18 @@ TEST_F(InMemoryIoContextTest, PartialReadWrite)
     EXPECT_EQ(result, 2);
 }
 
+TEST_F(InMemoryIoContextTest, PartialReadWrite1Byte)
+{
+    std::vector buffer = {'H'};
+    syncAwait(ctx.set_fd(35, std::move(buffer)));
+
+    syncAwait(ctx.set_condition(35, MemoryStreamContext::Condition{.partial_read_write = true}));
+
+    char read_buf[5];
+    auto result = syncAwait(ctx.async_read(35, std::span(read_buf), 0));
+    EXPECT_EQ(result, 1);
+}
+
 int main(int argc, char** argv)
 {
     spdlog::set_level(spdlog::level::debug);

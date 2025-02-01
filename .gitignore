@@ -117,3 +117,4 @@ Cargo.lock
 dump.rdb
 go-benchmark.iml
 /testdata
+**/*/.rustc_info.json
