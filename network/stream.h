@@ -10,11 +10,13 @@
 #include <unistd.h>
 #include <utility>
 
+#include "core/buffer.h"
 #include "io_context/uring_context.h"
 
 namespace aio
 {
-    class Stream
+    // inherit from IoStreamBase to allow this class to be used for buffered reading and writing.
+    class Stream final : public IoStreamBase
     {
         int fd_{-1};
         std::string local_endpoint_;
@@ -35,10 +37,10 @@ namespace aio
 
         /// Read from the stream. Perform a single read call. May not read all the requested bytes even if the stream is not closed.
         /// Returns the number of bytes read or an error code.
-        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> read(std::span<char> buffer) const;
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> read(std::span<char> buffer) const override;
 
         /// Write to the stream. Perform a single write call. May not write all the requested bytes even if the stream is not closed.
-        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> write(std::span<const char> buffer) const;
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> write(std::span<const char> buffer) const override;
 
         /// read as much as possible from the stream. This function will keep reading until the buffer is full or the stream is closed.
         [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> read_all(std::span<char> buffer) const;
@@ -63,7 +65,7 @@ namespace aio
             }
         }
 
-        ~Stream()
+        ~Stream() override
         {
             if (fd_ != -1)
             {

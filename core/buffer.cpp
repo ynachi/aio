@@ -16,7 +16,7 @@ std::span<char> Buffer::read_span(size_t max_len) noexcept
 {
     size_t available = write_pos_ - read_pos_;
     size_t to_read = std::min(available, max_len);
-    return std::span(data_.data() + read_pos_, to_read);
+    return {data_.data() + read_pos_, to_read};
 }
 
 void Buffer::consume(size_t len) noexcept

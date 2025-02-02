@@ -58,7 +58,7 @@ namespace aio
         void start_event_loop(size_t batch_size = 256)
         {
             cq_processing_thread_ = std::jthread(
-                    [this, batch_size](std::stop_token stop_token)
+                    [this, batch_size](const std::stop_token& stop_token)
                     {
                         while (!stop_token.stop_requested())
                         {
