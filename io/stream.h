@@ -10,13 +10,13 @@
 #include <unistd.h>
 #include <utility>
 
+#include "buffered.h"
 #include "core/buffer.h"
 #include "io_context/uring_context.h"
 
 namespace aio
 {
-    // inherit from IoStreamBase to allow this class to be used for buffered reading and writing.
-    class Stream final : public IoStreamBase
+    class Stream final : public IReader, public IWriter
     {
         int fd_{-1};
         std::string local_endpoint_;

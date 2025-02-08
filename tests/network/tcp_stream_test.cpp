@@ -3,8 +3,8 @@
 #include <spdlog/common.h>
 
 #include "core/buffer.h"
+#include "io/stream.h"
 #include "io_context/memory_stream_context.h"
-#include "network/stream.h"
 
 class TcpStreamTest : public ::testing::Test
 {

@@ -16,7 +16,7 @@ find_package(PkgConfig REQUIRED)
 # for internal io_context library
 add_subdirectory(io_context)
 # for network library
-add_subdirectory(network)
+add_subdirectory(io)
 # for demos
 add_subdirectory(demos)
 
