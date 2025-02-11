@@ -40,9 +40,10 @@ namespace aio
         };
 
         /// Peek at most buffer.size() bytes from the reader without consuming them. This method makes at most one read call.
-        /// to the underlying IO source. Reading less than buffer.size() bytes is not necessarily an error.
+        /// to the underlying IO source. Reading less than buffer.size() bytes is not necessarily an error. Peaked data is
+        /// short-lived. The next read or write on the buffer could invalidate it so it has to be used right away.
         /// Errors will be returned as an error code.
-        [[nodiscard]] async_simple::coro::Lazy<std::expected<size_t, std::error_code>> peek(std::span<char> buffer) const;
+        [[nodiscard]] async_simple::coro::Lazy<std::expected<std::span<char>, std::error_code>> peek(size_t n);
 
         [[nodiscard]] async_simple::coro::Lazy<std::expected<uint8_t, std::error_code>> read_byte() const;
 
@@ -55,11 +56,21 @@ namespace aio
         // EOL is defined as CR, LF or CRLF.
         [[nodiscard]] async_simple::coro::Lazy<std::expected<std::string, std::error_code>> read_line() const;
 
+        [[nodiscard]] bool is_readable() const
+        {
+            return read_pos_ < buffer_.size() && read_pos_ < write_pos_;
+        }
+
+        [[nodiscard]] size_t available() const
+        {
+            return buffer_.size() - read_pos_;
+        }
+
     private:
         IReader& rd_;
         std::vector<char> buffer_;
-        int64_t read_pos_ = 0;
-        int64_t write_pos_ = 0;
+        size_t read_pos_ = 0;
+        size_t write_pos_ = 0;
         Options& opts_;
         std::atomic_bool upstream_eof_{false};
     };

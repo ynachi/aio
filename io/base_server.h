@@ -10,6 +10,7 @@ namespace aio
 {
     struct IPAddress
     {
+        
         sockaddr storage_{};
         socklen_t storage_size_ = 0;
         // original address string

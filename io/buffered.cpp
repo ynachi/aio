@@ -1,25 +1,29 @@
 #include "buffered.h"
+
 #include <expected>
+#include <spdlog/spdlog.h>
 #include <system_error>
 
 namespace aio {
-    async_simple::coro::Lazy<std::expected<size_t, std::error_code>> Reader::peek(std::span<char> buffer) const 
+    async_simple::coro::Lazy<std::expected<std::span<char>, std::error_code>> Reader::peek(size_t n)
     {
-        if (buffer.empty()) {
+        if (n <= 0) {
             co_return std::unexpected(std::make_error_code(std::errc::invalid_argument));
         }
-        if (read_pos_ == write_pos_) {
+
+        if (!is_readable() || available() < n) {
             // buffer is empty, read from the source
-            buffer_.resize(initial_buffer_size);
-            auto res = co_await rd_.read(buffer_.span());
+            const size_t new_size = buffer_.size() * 2;
+            buffer_.resize(new_size);
+            auto res = co_await rd_.read(std::span(buffer_.data() + write_pos_, new_size - write_pos_));
             if (!res) {
-                co_return res.error();
+                co_return std::unexpected(res.error());
             }
-            write_pos_ = *res;
+            write_pos_ += res.value();
+            spdlog::debug("peek: read {} bytes from upstream reader", res.value());
         }
-        auto to_copy = std::min(buffer.size(), write_pos_ - read_pos_);
-        std::copy_n(buffer_.begin() + read_pos_, to_copy, buffer.begin());
-        read_pos_ += to_copy;
-        co_return to_copy;
+
+        auto to_copy = std::min(n, available());
+        co_return std::span(buffer_.data() + read_pos_, to_copy);
     }
 }
