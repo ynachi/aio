@@ -39,6 +39,10 @@ namespace aio
             size_t initial_buffer_size = DEFAULT_INITIAL_READ_BUFFER_SIZE;
         };
 
+        Options options;
+
+        explicit Reader(IReader& rd) : rd_(rd), buffer_(std::vector<char>(DEFAULT_INITIAL_READ_BUFFER_SIZE)) {}
+
         /// Peek at most buffer.size() bytes from the reader without consuming them. This method makes at most one read call.
         /// to the underlying IO source. Reading less than buffer.size() bytes is not necessarily an error. Peaked data is
         /// short-lived. The next read or write on the buffer could invalidate it so it has to be used right away.
@@ -56,22 +60,15 @@ namespace aio
         // EOL is defined as CR, LF or CRLF.
         [[nodiscard]] async_simple::coro::Lazy<std::expected<std::string, std::error_code>> read_line() const;
 
-        [[nodiscard]] bool is_readable() const
-        {
-            return read_pos_ < buffer_.size() && read_pos_ < write_pos_;
-        }
+        [[nodiscard]] bool is_readable() const { return read_pos_ < buffer_.size() && read_pos_ < write_pos_; }
 
-        [[nodiscard]] size_t available() const
-        {
-            return buffer_.size() - read_pos_;
-        }
+        [[nodiscard]] size_t available_in_buffer() const { return write_pos_ - read_pos_; }
 
     private:
         IReader& rd_;
         std::vector<char> buffer_;
         size_t read_pos_ = 0;
         size_t write_pos_ = 0;
-        Options& opts_;
         std::atomic_bool upstream_eof_{false};
     };
 

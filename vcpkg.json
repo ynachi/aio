@@ -4,8 +4,7 @@
     "spdlog",
     "async-simple",
     "gtest",
-    "benchmark",
-    "liburing"
+    "benchmark"
   ],
   "version": "1.0.0",
   "name": "dependencies"
