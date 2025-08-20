@@ -11,4 +11,4 @@ add_definitions(${LIBURING_CFLAGS_OTHER})
 
 add_library(io_context_lib uring_context.h io_context.h memory_stream_context.h memory_stream_context.cpp)
 # need to link fmt because of spdlog
-target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} yalantinglibs::yalantinglibs fmt::fmt spdlog::spdlog)
+target_link_libraries(io_context_lib PRIVATE ${LIBURING_LIBRARIES} yalantinglibs::yalantinglibs)

@@ -26,7 +26,7 @@ async_simple::coro::Lazy<> run_server(std::unique_ptr<aio::TCPServer> server)
         auto client = co_await server->accept();
         if (!client.has_value())
         {
-            spdlog::error("Accept failed: {}", client.error().message());
+            // spdlog::error("Accept failed: {}", client.error().message());
             continue;
         }
 

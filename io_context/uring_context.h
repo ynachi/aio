@@ -5,6 +5,7 @@
 #ifndef URING_CONTEXT_H
 #define URING_CONTEXT_H
 #include <async_simple/coro/FutureAwaiter.h>
+#include <async_simple/Promise.h>
 #include <async_simple/coro/Lazy.h>
 #include <cassert>
 #include <cstddef>

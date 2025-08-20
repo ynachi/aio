@@ -121,6 +121,7 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections()
         sockaddr_in client_addr{};
         socklen_t client_addr_len = sizeof(client_addr);
         int client_fd = co_await io_uring_ctx.async_accept(server_fd, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+        spdlog::info("got a new connection fd = {}", client_fd);
         if (client_fd < 0)
         {
             spdlog::error("failed to accept connection: {}", strerror(-client_fd));
@@ -134,6 +135,7 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections()
 
 void TcpServer::run()
 {
+    spdlog::debug("starting server");
     async_accept_connections().start([](auto &&) {});
     while (running_)
     {
