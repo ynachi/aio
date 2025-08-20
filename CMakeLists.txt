@@ -6,6 +6,21 @@ set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+set(GTEST_GIT_TAG v1.17.0)
+
+# #####################################################################################################################
+# DEPENDENCIES
+# #####################################################################################################################
+
+# Gtest
+include(cmake/FindGtest.cmake)
+
+# YLT
+include(cmake/FindYLT.cmake)
+
+# Benchmark
+include(cmake/FindGoogleBenchmark.cmake)
+
 # set include directories from this CMake file
 include_directories(${CMAKE_SOURCE_DIR})
 

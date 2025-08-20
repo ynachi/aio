@@ -3,7 +3,7 @@ import random
 import time
 
 
-async def client_session(client_id: int, num_messages: int, host: str = '127.0.0.1', port: int = 8080):
+async def client_session(client_id: int, num_messages: int, host: str = '127.0.0.1', port: int = 8092):
     for i in range(num_messages):
         try:
             reader, writer = await asyncio.open_connection(host, port)

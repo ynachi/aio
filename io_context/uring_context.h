@@ -5,6 +5,7 @@
 #ifndef URING_CONTEXT_H
 #define URING_CONTEXT_H
 #include <async_simple/coro/FutureAwaiter.h>
+#include <async_simple/Promise.h>
 #include <async_simple/coro/Lazy.h>
 #include <cassert>
 #include <cstddef>
@@ -79,15 +80,6 @@ namespace aio
 
         static void prep_close_wrapper(io_uring_sqe *sqe, const int fd) { io_uring_prep_close(sqe, fd); }
 
-        void handle_cqe(io_uring_cqe *cqe)
-        {
-            assert(cqe && "cqe must not be null");
-            auto *op = reinterpret_cast<Operation *>(cqe->user_data);
-            op->promise.setValue(cqe->res);
-            delete op;
-            io_uring_cqe_seen(&uring_, cqe);
-        }
-
 
         void shutdown_cleanup()
         {
@@ -130,7 +122,7 @@ namespace aio
             check_kernel_version();
 
             io_uring_params params{};
-            // params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
+            params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
 
             if (const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params); ret < 0)
             {
@@ -156,70 +148,34 @@ namespace aio
 
         [[nodiscard]] size_t get_queue_depth() const { return queue_size_; }
 
-        /**
-         * Submits pending IO requests to the io_uring instance.
-         *
-         * This method checks if there are any pending IO submissions and attempts
-         * to submit them to the io_uring instance using `io_uring_submit`. If the
-         * submission fails, it throws a system_error exception with the appropriate
-         * error code and message. Upon successful submission, it adjusts the count
-         * of pending submissions accordingly.
-         *
-         * This function is typically called to ensure all queued requests are
-         * submitted before further processing, such as completing IO operations.
-         *
-         * Exceptions:
-         * - Throws `std::system_error` if `io_uring_submit` fails, providing
-         *   the error code and message.
-         */
-        void submit_sqs()
+        void submit_sqes()
         {
-            const int ret = io_uring_submit(&uring_);
-            if (ret < 0)
+            if (const int ret = io_uring_submit(&uring_); ret < 0)
             {
-                spdlog::error("IoUringContext::submit_sqs failed to submit io requests: {}", strerror(-ret));
+                // Interrupted system call
+                if (-ret == EINTR)
+                {
+                    spdlog::warn("IoUringContext::submit_sqs interrupted, will retry on next call");
+                    return;
+                }
+
+                // SQ full or other resource limit reached
+                if (-ret == EAGAIN || -ret == EBUSY)
+                {
+                    spdlog::warn("IoUringContext::submit_sqs resources limitation, will retry on next call");
+                    return;
+                }
+
+                spdlog::error("IoUringContext::submit_sqs failed to submit io requests, fatal error");
                 throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
             }
-            spdlog::debug("IoUringContext::submit_sqs submitted {} io requests", ret);
+            spdlog::debug("IoUringContext::submit_sqs submitted io requests");
         }
 
-        void submit_sqs_wait()
-        {
-            const int ret = io_uring_submit_and_wait(&uring_, 1);
-            if (ret < 0)
-            {
-                spdlog::error("failed to submit io requests: {}", strerror(-ret));
-                // @TODO not sure we want to thow here, lets check which kind of error we
-                // can get before
-                throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
-            }
-            spdlog::debug("submitted {} io requests", ret);
-        }
-
-        /**
-         * Processes completed IO operations in the io_uring instance.
-         *
-         * This method retrieves and handles IO completions from the io_uring
-         * completion queue. Initially, it ensures that all pending IO submissions
-         * are processed by invoking `issue_submissions()`. It then continuously
-         * checks for completed IO events using `io_uring_peek_cqe` and processes
-         * them. Each completion is linked with a user-defined operation, which is
-         * marked as completed and resolved using the associated promise.
-         *
-         * Unprocessed events in the completion queue are acknowledged using
-         * `io_uring_cqe_seen` to allow the kernel to reuse the associated resources.
-         * The method ensures IO completion handling is performed in a non-blocking
-         * manner.
-         *
-         * Notes:
-         * - This method does not wait for additional completions or timeouts; it
-         *   only processes currently available completions.
-         * - In case no completions are available, no further action is taken.
-         */
         void process_completions()
         {
             // submit pending io requests first
-            submit_sqs();
+            submit_sqes();
             io_uring_cqe *cqe;
             while (io_uring_peek_cqe(&uring_, &cqe) == 0)
             {
@@ -261,34 +217,6 @@ namespace aio
             }
         }
 
-        /**
-         * Asynchronously accepts a new connection on a server socket.
-         *
-         * This method sets up an asynchronous accept operation using io_uring to wait
-         * for an incoming connection on the specified server file descriptor
-         * (`server_fd`). When a connection is successfully accepted, information
-         * about the connecting client's address is stored in the provided `addr` and
-         * `addrlen` parameters.
-         *
-         * The io_uring instance prepares an accept submission queue entry (SQE) with
-         * the necessary arguments, links it to a promise-backed operation, and waits
-         * for the completion of the accept operation.
-         *
-         * Note:
-         * - The method uses coroutine functionality and should be awaited.
-         * - On failure, an exception may be thrown, so error handling should be in
-         * place during invocation.
-         *
-         * @param server_fd The file descriptor of the server socket to accept
-         * connections on.
-         * @param addr A pointer to a `sockaddr` structure where the client's address
-         * will be stored upon a successful connection.
-         * @param addrlen A pointer to a socklen_t variable that holds the size of the
-         *                `addr` buffer. This is updated with the actual size of the
-         *                client's address upon success.
-         * @return A coroutine that resolves to the file descriptor of the newly
-         * accepted connection, or a negative value in case of failure.
-         */
         async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) override { co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen); }
 
         async_simple::coro::Lazy<int> async_read(int client_fd, std::span<char> buf, uint64_t offset) override

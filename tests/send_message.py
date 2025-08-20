@@ -2,7 +2,7 @@ import socket
 import time
 
 
-def send_message(message: str, host: str = '127.0.0.1', port: int = 8080) -> str:
+def send_message(message: str, host: str = '127.0.0.1', port: int = 8092) -> str:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.connect((host, port))
     print(f'Sending: {message}')
