@@ -11,7 +11,7 @@ int main()
     try
     {
         // in photonlib, queue size is 16384 by default
-        TcpServer server("::1", 8092, 16384);
+        TcpServer server("127.0.0.1", 8092, 16384);
         std::cout << "created server object\n";
         server.run();
     }
