@@ -85,7 +85,7 @@ namespace aio
          */
         virtual void shutdown()
         {
-            if (bool was_running = true; running_.compare_exchange_strong(was_running, false))
+            if (running_)
             {
                 do_shutdown();
             }
@@ -95,7 +95,7 @@ namespace aio
 
     protected:
         // wether the io context is running. Check to not run multiple times
-        std::atomic<bool> running_{false};
+        bool running_{false};
     };
 }  // namespace aio
 

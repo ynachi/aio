@@ -246,7 +246,7 @@ namespace aio
 
         void run()
         {
-            if (bool expected = false; !running_.compare_exchange_strong(expected, true))
+            if (running_)
             {
                 spdlog::info("the io_context is already running");
                 return;
@@ -254,7 +254,7 @@ namespace aio
 
             // At this point, we've atomically set running_ to true
             // and we know we're the only thread that succeeded
-            while (running_.load(std::memory_order_relaxed))
+            while (running_)
             {
                 process_completions_wait(cq_processing_batch_size_);
             }
