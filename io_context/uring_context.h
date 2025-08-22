@@ -280,18 +280,7 @@ namespace aio
 
         void run()
         {
-            if (running_)
-            {
-                spdlog::info("the io_context is already running");
-                return;
-            }
-
-            // At this point, we've atomically set running_ to true
-            // and we know we're the only thread that succeeded
-            while (running_)
-            {
-                process_completions_wait(cq_processing_batch_size_);
-            }
+           process_completion();
         }
     };
 
