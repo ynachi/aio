@@ -4,7 +4,7 @@
 
 #include "core/buffer.h"
 #include "io_context/memory_stream_context.h"
-#include "network/stream.h"
+#include "net/stream.h"
 
 class TcpStreamTest : public ::testing::Test
 {

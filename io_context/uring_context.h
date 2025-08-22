@@ -202,7 +202,7 @@ namespace aio
             }
         }
 
-        void process_completion()
+        void process_completions()
         {
             while (running_)
             {
@@ -280,7 +280,7 @@ namespace aio
 
         void run()
         {
-           process_completion();
+            process_completions();
         }
     };
 
