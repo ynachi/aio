@@ -192,10 +192,8 @@ void TcpServer::run()
 {
     spdlog::debug("starting server");
     async_accept_connections().start([](auto &&) {});
-    while (running_)
-    {
-        io_uring_ctx.process_completions_wait(200);
-    }
+
+    io_uring_ctx.process_completion_v3();
 }
 
 

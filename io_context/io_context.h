@@ -95,7 +95,7 @@ namespace aio
 
     protected:
         // wether the io context is running. Check to not run multiple times
-        bool running_{false};
+        std::atomic<bool> running_{true};
     };
 }  // namespace aio
 

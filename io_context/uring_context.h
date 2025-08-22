@@ -20,13 +20,6 @@
 
 namespace aio
 {
-    //@TODO add some probe
-    // pending submission
-    // processed completion
-    // accepted clients
-    // active clients
-    // read bytes
-    // written bytes
 
     class IoUringContext : public IoContextBase
     {
@@ -84,7 +77,10 @@ namespace aio
         void shutdown_cleanup()
         {
             process_completions();
-            io_uring_queue_exit(&uring_);
+            if (this->uring_.ring_fd >= 0)
+            {
+                io_uring_queue_exit(&uring_);
+            }
         }
 
         void do_shutdown() override { shutdown_cleanup(); }
@@ -172,49 +168,87 @@ namespace aio
             spdlog::debug("IoUringContext::submit_sqs submitted io requests");
         }
 
-        void process_completions()
-        {
-            // submit pending io requests first
-            submit_sqes();
-            io_uring_cqe *cqe;
-            while (io_uring_peek_cqe(&uring_, &cqe) == 0)
-            {
-                auto *op = reinterpret_cast<Operation *>(cqe->user_data);
-                op->promise.setValue(cqe->res);
-                delete op;
-                io_uring_cqe_seen(&uring_, cqe);
-            }
-        }
-
         // like process_completions but waits for completions to be available and
         // process a batch of completions
         void process_completions_wait(const size_t batch_size)
         {
-            // Wait for at least one completion and submit pending ops
-            if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
+            while (running_)
             {
-                spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
-                return;
+                // Wait for at least one completion and submit pending ops
+                if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
+                {
+                    spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
+                    return;
+                }
+
+                io_uring_cqe *cqes[batch_size];
+
+                // Get a batch of completions
+                const auto count = io_uring_peek_batch_cqe(&uring_, cqes, batch_size);
+
+                // Process all completions in the batch
+                for (unsigned i = 0; i < count; i++)
+                {
+                    auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
+                    op->promise.setValue(cqes[i]->res);
+                    delete op;
+                }
+
+                // Mark the entire batch as seen
+                if (count > 0)
+                {
+                    io_uring_cq_advance(&uring_, count);
+                }
             }
+        }
 
-            io_uring_cqe *cqes[batch_size];
-
-            // Get a batch of completions
-            const auto count = io_uring_peek_batch_cqe(&uring_, cqes, batch_size);
-
-            // Process all completions in the batch
-            for (unsigned i = 0; i < count; i++)
+        void process_completion()
+        {
+            while (running_)
             {
-                auto *op = reinterpret_cast<Operation *>(cqes[i]->user_data);
-                op->promise.setValue(cqes[i]->res);
-                delete op;
-            }
+                // Wait for at least one completion and submit pending ops
+                if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
+                {
+                    spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
+                    return;
+                }
 
-            // Mark the entire batch as seen
-            if (count > 0)
-            {
+                io_uring_cqe *cqe;
+                const int ret = io_uring_wait_cqe_timeout(&uring_, &cqe, nullptr);
+
+                if (ret < 0)
+                {
+                    // Interrupted system call
+                    if (-ret == EINTR)
+                    {
+                        spdlog::warn("IoUringContext::process_completion_ interrupted, will retry on next call");
+                        continue;
+                    }
+
+                    // resource limit reached
+                    if (-ret == EAGAIN || -ret == EBUSY)
+                    {
+                        spdlog::warn("IoUringContext::process_completion_ resources limitation, will retry on next call");
+                        continue;
+                    }
+
+                    spdlog::error("IoUringContext::process_completion_ failed to process io requests, fatal error");
+                    throw std::system_error(-ret, std::system_category(), "process_completion_ failed");
+                }
+
+
+                // Process all available completions in batch
+                unsigned head;
+                unsigned count = 0;
+                io_uring_for_each_cqe(&uring_, head, cqe) {
+                    auto *op = reinterpret_cast<Operation *>(cqe->user_data);
+                    op->promise.setValue(cqe->res);
+                    delete op;
+                    count++;
+                }
                 io_uring_cq_advance(&uring_, count);
             }
+
         }
 
         async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) override { co_return co_await prepare_operation(prep_accept_wrapper, server_fd, addr, addrlen); }
