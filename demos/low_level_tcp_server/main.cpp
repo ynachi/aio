@@ -7,17 +7,18 @@
 
 int main()
 {
-    spdlog::set_level(spdlog::level::debug);
-    try
-    {
-        // in photonlib, queue size is 16384 by default
-        TcpServer server("127.0.0.1", 8092, 16384);
-        std::cout << "created server object\n";
-        server.run();
-    }
-    catch (const std::exception &ex)
-    {
-        std::cerr << "Error: " << ex.what() << "\n";
-    }
+    spdlog::set_level(spdlog::level::info);
+    // try
+    // {
+    //     // in photonlib, queue size is 16384 by default
+    //     TcpServer server("127.0.0.1", 8092, 16384);
+    //     std::cout << "created server object\n";
+    //     server.run();
+    // }
+    // catch (const std::exception &ex)
+    // {
+    //     std::cerr << "Error: " << ex.what() << "\n";
+    // }
+    TcpServer::run_multi_threaded("127.0.0.1", 8092, 16384, 2);
     return 0;
 }
