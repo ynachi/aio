@@ -4,19 +4,19 @@
 
 #ifndef URING_CONTEXT_H
 #define URING_CONTEXT_H
-#include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/Promise.h>
+#include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/coro/Lazy.h>
 #include <cassert>
 #include <cstddef>
 #include <liburing.h>
 #include <liburing/io_uring.h>
 #include <memory>
-#include <spdlog/spdlog.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
-
+#include <ylt/easylog.hpp>
 #include "io_context.h"
+#include "ylt/easylog.hpp"
 
 namespace aio
 {
@@ -32,7 +32,10 @@ namespace aio
         {
             async_simple::Promise<int> promise;
 
-            ~Operation() { spdlog::trace("operation destroyed"); }
+            ~Operation()
+            {
+                ELOG_TRACE << "operation destroyed";
+            }
         };
 
         // Helper to prepare an SQE with common setup
@@ -42,7 +45,7 @@ namespace aio
             io_uring_sqe *sqe = get_sqe();
             if (!sqe)
             {
-                spdlog::error("IoUringContext::prepare_operation Submission queue full");
+                ELOG_ERROR << "IoUringContext::prepare_operation Submission queue full";
                 co_return -EAGAIN;
             }
 
@@ -125,15 +128,15 @@ namespace aio
                 throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
             }
 
-            spdlog::info("IoUringContext initialized with {} queue size", queue_size_);
+            ELOG_INFO << "IoUringContext initialized with " << queue_size_ << "queue size";
         }
 
         ~IoUringContext() override
         {
-            spdlog::debug("IoUringContext::deinit calling destructor IoUringContext, processing pending requests");
+            ELOG_DEBUG << "IoUringContext::deinit calling destructor IoUringContext, processing pending requests";
             // process pending completions before exiting
             shutdown_cleanup();
-            spdlog::debug("IoUringContext::deinit io_uring exited");
+            ELOG_DEBUG << "IoUringContext::deinit io_uring exited";
         }
 
         // get the io_uring instance
@@ -151,21 +154,21 @@ namespace aio
                 // Interrupted system call
                 if (-ret == EINTR)
                 {
-                    spdlog::warn("IoUringContext::submit_sqs interrupted, will retry on next call");
+                    ELOG_WARN << "IoUringContext::submit_sqs interrupted, will retry on next call";
                     return;
                 }
 
                 // SQ full or other resource limit reached
                 if (-ret == EAGAIN || -ret == EBUSY)
                 {
-                    spdlog::warn("IoUringContext::submit_sqs resources limitation, will retry on next call");
+                    ELOG_WARN << "IoUringContext::submit_sqs resources limitation, will retry on next call";
                     return;
                 }
 
-                spdlog::error("IoUringContext::submit_sqs failed to submit io requests, fatal error");
+                ELOG_ERROR << "IoUringContext::submit_sqs failed to submit io requests, fatal error";
                 throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
             }
-            spdlog::debug("IoUringContext::submit_sqs submitted io requests");
+            ELOG_DEBUG << "IoUringContext::submit_sqs submitted io requests";
         }
 
         // like process_completions but waits for completions to be available and
@@ -177,7 +180,7 @@ namespace aio
                 // Wait for at least one completion and submit pending ops
                 if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
                 {
-                    spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
+                    ELOG_ERROR << "io_uring_submit_and_wait failed: " << strerror(-ret);
                     return;
                 }
 
@@ -209,7 +212,7 @@ namespace aio
                 // Wait for at least one completion and submit pending ops
                 if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
                 {
-                    spdlog::error("io_uring_submit_and_wait failed: {}", strerror(-ret));
+                    ELOG_ERROR << "io_uring_submit_and_wait failed: " << strerror(-ret);
                     return;
                 }
 
@@ -221,18 +224,18 @@ namespace aio
                     // Interrupted system call
                     if (-ret == EINTR)
                     {
-                        spdlog::warn("IoUringContext::process_completion_ interrupted, will retry on next call");
+                        ELOG_WARN << "IoUringContext::process_completion_ interrupted, will retry on next call";
                         continue;
                     }
 
                     // resource limit reached
                     if (-ret == EAGAIN || -ret == EBUSY)
                     {
-                        spdlog::warn("IoUringContext::process_completion_ resources limitation, will retry on next call");
+                        ELOG_WARN << "IoUringContext::process_completion_ resources limitation, will retry on next call";
                         continue;
                     }
 
-                    spdlog::error("IoUringContext::process_completion_ failed to process io requests, fatal error");
+                    ELOG_ERROR << "IoUringContext::process_completion_ failed to process io requests, fatal error";
                     throw std::system_error(-ret, std::system_category(), "process_completion_ failed");
                 }
 

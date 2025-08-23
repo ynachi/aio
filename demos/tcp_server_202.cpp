@@ -36,7 +36,6 @@ async_simple::coro::Lazy<> run_server(std::unique_ptr<aio::TCPServer> server)
 
 int main()
 {
-    spdlog::set_level(spdlog::level::info);
     auto server = aio::TCPServer::create(19000, "127.0.0.1", 8080, {});
     syncAwait(run_server(std::move(server)));
     return 0;
