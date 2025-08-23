@@ -11,7 +11,3 @@ FetchContent_Declare(
 )
 
 FetchContent_MakeAvailable(yalantinglibs)
-
-#add_executable(main main.cpp)
-#target_link_libraries(main yalantinglibs::yalantinglibs)
-#target_compile_features(main PRIVATE cxx_std_20)

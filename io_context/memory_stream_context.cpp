@@ -3,7 +3,7 @@
 #include <async_simple/coro/Lazy.h>
 #include <cerrno>
 #include <random>
-#include <spdlog/spdlog.h>
+#include <ylt/easylog.hpp>
 #include <vector>
 
 async_simple::coro::Lazy<int> MemoryStreamContext::async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen)
@@ -153,31 +153,31 @@ async_simple::coro::Lazy<bool> MemoryStreamContext::fd_has_error(int fd) noexcep
     if (cond.is_closed)
     {
         errno = EBADF;  // Bad file descriptor
-        spdlog::error("attempt to operate on a closed fd {}", fd);
+        ELOG_ERROR << "attempt to operate on a closed fd " << fd;
         co_return true;
     }
     if (cond.permission_denied)
     {
         errno = EACCES;  // Permission denied
-        spdlog::error("permission denied on fd {}", fd);
+        ELOG_ERROR << "permission denied on fd " << fd;
         co_return true;
     }
     if (cond.connection_reset)
     {
         errno = ECONNRESET;  // Connection reset by peer
-        spdlog::error("connection reset on fd {}", fd);
+        ELOG_ERROR << "connection reset on fd " << fd;
         co_return true;
     }
     if (cond.connection_refused)
     {
         errno = ECONNREFUSED;  // Connection refused
-        spdlog::error("connection refused on fd {}", fd);
+        ELOG_ERROR << "connection refused on fd " << fd;
         co_return true;
     }
     if (cond.network_unreachable)
     {
         errno = ENETUNREACH;  // Network is unreachable
-        spdlog::error("network unreachable on fd {}", fd);
+        ELOG_ERROR << "network unreachable on fd " << fd;
         co_return true;
     }
     co_return false;
@@ -191,7 +191,7 @@ async_simple::coro::Lazy<> MemoryStreamContext::set_condition(int fd, Condition 
         co_return;
     }
     conditions_[fd] = condition;
-    spdlog::info("Condition set for fd {}", fd);
+    ELOG_INFO << "Condition set for fd " << fd;
 }
 
 // Helper function to set random latency conditions for a file descriptor
@@ -205,7 +205,6 @@ async_simple::coro::Lazy<> MemoryStreamContext::set_random_latency(int fd, std::
     conditions_[fd].low_latency = low;
     conditions_[fd].high_latency = high;
     conditions_[fd].random_latency = true;
-    spdlog::info("Random latency set for fd {}: {}ms to {}ms", fd, low.count(), high.count());
 }
 
 // Helper function to reset conditions for a file descriptor
@@ -219,7 +218,7 @@ async_simple::coro::Lazy<> MemoryStreamContext::reset_condition(int fd) noexcept
     // apply a default condition
     constexpr Condition cond;
     conditions_[fd] = cond;
-    spdlog::info("Condition reset for fd {}", fd);
+    ELOG_INFO << "Condition reset for fd " << fd;
 }
 
 async_simple::coro::Lazy<> MemoryStreamContext::apply_latency(int fd) noexcept
@@ -250,5 +249,5 @@ async_simple::coro::Lazy<> MemoryStreamContext::set_fd(int fd, std::vector<char>
     buffers_[fd] = std::move(buffer);
     conditions_[fd] = Condition();
     stats_.emplace(fd, MemoryStreamStats());
-    spdlog::info("Buffer set for fd {}", fd);
+    ELOG_ERROR << "Buffer set for fd " << fd;
 }
