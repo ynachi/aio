@@ -20,6 +20,6 @@ int main()
     // {
     //     std::cerr << "Error: " << ex.what() << "\n";
     // }
-    TcpServer::run_multi_threaded("127.0.0.1", 8092, 16384, 4);
+    TcpServer::run_multi_threaded("127.0.0.1", 8092, 16384, 1);
     return 0;
 }
