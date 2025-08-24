@@ -8,15 +8,12 @@
 #include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/coro/Lazy.h>
 #include <cassert>
-#include <cstddef>
 #include <liburing.h>
 #include <liburing/io_uring.h>
-#include <memory>
 #include <sys/socket.h>
 #include <sys/utsname.h>
 #include <ylt/easylog.hpp>
 #include "io_context.h"
-#include "ylt/easylog.hpp"
 
 namespace aio
 {
@@ -110,6 +107,29 @@ namespace aio
             }
         }
 
+        static void check_syscall_return(const int ret)
+        {
+            if (ret < 0)
+            {
+                // Interrupted system call
+                if (-ret == EINTR)
+                {
+                    ELOG_WARN << "interrupted, will retry on next call";
+                    return;
+                }
+
+                // resource limit reached
+                if (-ret == EAGAIN || -ret == EBUSY)
+                {
+                    ELOG_WARN << "resources limitation, will retry on next call";
+                    return;
+                }
+
+                ELOGFMT(ERROR, "failed to process io requests, fatal error: {}", strerror(-ret));
+                throw std::system_error(-ret, std::system_category(), "system call failed failed");
+            }
+        }
+
     public:
         explicit IoUringContext(const size_t queue_size) : queue_size_(queue_size)
         {
@@ -128,7 +148,7 @@ namespace aio
                 throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
             }
 
-            ELOG_INFO << "IoUringContext initialized with " << queue_size_ << "queue size";
+            ELOGFMT(INFO, "IoUringContext initialized with {} ", queue_size);
         }
 
         ~IoUringContext() override
@@ -149,26 +169,8 @@ namespace aio
 
         void submit_sqes()
         {
-            if (const int ret = io_uring_submit(&uring_); ret < 0)
-            {
-                // Interrupted system call
-                if (-ret == EINTR)
-                {
-                    ELOG_WARN << "IoUringContext::submit_sqs interrupted, will retry on next call";
-                    return;
-                }
-
-                // SQ full or other resource limit reached
-                if (-ret == EAGAIN || -ret == EBUSY)
-                {
-                    ELOG_WARN << "IoUringContext::submit_sqs resources limitation, will retry on next call";
-                    return;
-                }
-
-                ELOG_ERROR << "IoUringContext::submit_sqs failed to submit io requests, fatal error";
-                throw std::system_error(-ret, std::system_category(), "io_uring_submit failed");
-            }
-            ELOG_DEBUG << "IoUringContext::submit_sqs submitted io requests";
+            const int ret = io_uring_submit(&uring_);
+            check_syscall_return(ret);
         }
 
         // like process_completions but waits for completions to be available and
@@ -178,11 +180,8 @@ namespace aio
             while (running_)
             {
                 // Wait for at least one completion and submit pending ops
-                if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
-                {
-                    ELOG_ERROR << "io_uring_submit_and_wait failed: " << strerror(-ret);
-                    return;
-                }
+                const int ret = io_uring_submit_and_wait(&uring_, 1);
+                check_syscall_return(ret);
 
                 io_uring_cqe *cqes[batch_size];
 
@@ -210,35 +209,12 @@ namespace aio
             while (running_)
             {
                 // Wait for at least one completion and submit pending ops
-                if (const int ret = io_uring_submit_and_wait(&uring_, 1); ret < 0)
-                {
-                    ELOG_ERROR << "io_uring_submit_and_wait failed: " << strerror(-ret);
-                    return;
-                }
+                int ret = io_uring_submit_and_wait(&uring_, 1);
+                check_syscall_return(ret);
 
                 io_uring_cqe *cqe;
-                const int ret = io_uring_wait_cqe_timeout(&uring_, &cqe, nullptr);
-
-                if (ret < 0)
-                {
-                    // Interrupted system call
-                    if (-ret == EINTR)
-                    {
-                        ELOG_WARN << "IoUringContext::process_completion_ interrupted, will retry on next call";
-                        continue;
-                    }
-
-                    // resource limit reached
-                    if (-ret == EAGAIN || -ret == EBUSY)
-                    {
-                        ELOG_WARN << "IoUringContext::process_completion_ resources limitation, will retry on next call";
-                        continue;
-                    }
-
-                    ELOG_ERROR << "IoUringContext::process_completion_ failed to process io requests, fatal error";
-                    throw std::system_error(-ret, std::system_category(), "process_completion_ failed");
-                }
-
+                ret = io_uring_wait_cqe_timeout(&uring_, &cqe, nullptr);
+                check_syscall_return(ret);
 
                 // Process all available completions in batch
                 unsigned head;
