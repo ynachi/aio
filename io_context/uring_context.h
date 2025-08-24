@@ -17,13 +17,17 @@
 
 namespace aio
 {
+    struct IoUringOptions
+    {
+        size_t queue_size{512};
+        size_t processing_batch_size{128};
+        int default_flags = 0;
+    };
 
     class IoUringContext : public IoContextBase
     {
         io_uring uring_{};
-        size_t queue_size_;
-        size_t cq_processing_batch_size_{256};
-        static constexpr int DEFAULT_IO_FLAGS = 0;
+        const IoUringOptions& io_uring_options_;
 
         struct Operation
         {
@@ -131,9 +135,9 @@ namespace aio
         }
 
     public:
-        explicit IoUringContext(const size_t queue_size) : queue_size_(queue_size)
+        explicit IoUringContext(const IoUringOptions& io_uring_options) : io_uring_options_(io_uring_options)
         {
-            if (queue_size_ == 0)
+            if (io_uring_options_.queue_size == 0)
             {
                 throw std::invalid_argument("queue size and io threads must be greater than 0");
             }
@@ -143,12 +147,12 @@ namespace aio
             io_uring_params params{};
             params.flags |= IORING_SETUP_COOP_TASKRUN | IORING_SETUP_SINGLE_ISSUER;
 
-            if (const int ret = io_uring_queue_init_params(queue_size_, &uring_, &params); ret < 0)
+            if (const int ret = io_uring_queue_init_params(io_uring_options_.queue_size, &uring_, &params); ret < 0)
             {
                 throw std::system_error(-ret, std::system_category(), "io_uring_queue_init failed");
             }
 
-            ELOGFMT(INFO, "IoUringContext initialized with {} ", queue_size);
+            ELOGFMT(INFO, "IoUringContext initialized with {} ", io_uring_options_.queue_size);
         }
 
         ~IoUringContext() override
@@ -165,7 +169,7 @@ namespace aio
         // get sqe
         io_uring_sqe *get_sqe() { return io_uring_get_sqe(&uring_); }
 
-        [[nodiscard]] size_t get_queue_depth() const { return queue_size_; }
+        [[nodiscard]] size_t get_queue_depth() const { return io_uring_options_.queue_size; }
 
         void submit_sqes()
         {

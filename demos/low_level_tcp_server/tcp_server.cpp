@@ -126,7 +126,7 @@ void set_fd_server_options(const int fd)
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port, size_t io_queue_depth) : io_uring_ctx(io_queue_depth), ip_address_(std::move(ip_address)), port_(port)
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, const IoUringOptions& opts) : io_uring_ctx(opts), ip_address_(std::move(ip_address)), port_(port)
 {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
@@ -196,12 +196,12 @@ void TcpServer::run()
 }
 
 
-void TcpServer::worker(std::string host, const uint16_t port, size_t conn_queue_size)
+void TcpServer::worker(std::string host, const uint16_t port, const IoUringOptions& opts)
 {
     //@todo pass stop_token to server.run
     try
     {
-        TcpServer server(host, port, conn_queue_size);
+        TcpServer server(host, port, opts);
         server.run();
     }
     catch (const std::exception &ex)
@@ -211,14 +211,14 @@ void TcpServer::worker(std::string host, const uint16_t port, size_t conn_queue_
     }
 }
 
-void TcpServer::run_multi_threaded(std::string host, uint16_t port, size_t conn_queue_size, size_t worker_num)
+void TcpServer::run_multi_threaded(std::string host, uint16_t port, const IoUringOptions& opts, size_t worker_num)
 {
     std::vector<std::jthread> threads;
     threads.reserve(worker_num);
 
     for (int i = 0; i < worker_num; ++i)
     {
-        threads.emplace_back(worker, host, port, conn_queue_size);
+        threads.emplace_back(worker, host, port, opts);
 
         if (worker_num <= std::jthread::hardware_concurrency())
         {
