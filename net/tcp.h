@@ -6,7 +6,7 @@
 #define AIO_TCP_H
 
 #include <utility>
-
+#include <thread>
 #include "io_context/uring_context.h"
 
 namespace aio
@@ -22,9 +22,9 @@ namespace aio
             IoUringContext io_context_;
             std::stop_token stop_token_;
 
-            Worker(const uint id, std::stop_token stop_token): worker_id_(id), fd_(-1), stop_token_(std::move(stop_token))
+            Worker(const uint id, std::stop_token stop_token, const IoUringOptions& opts): worker_id_(id), fd_(-1), stop_token_(std::move(stop_token))
             {
-                IoUringContext
+                IoUringContext(opts);
             }
         };
 

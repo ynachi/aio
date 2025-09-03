@@ -8,6 +8,7 @@
 #include <async_simple/coro/FutureAwaiter.h>
 #include <async_simple/coro/Lazy.h>
 #include <cassert>
+#include <format>
 #include <liburing.h>
 #include <liburing/io_uring.h>
 #include <sys/socket.h>
