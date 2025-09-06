@@ -28,8 +28,7 @@ namespace aio
             // set non blocking
             if (const int ret = fcntl(server_fd_, F_SETFL, O_NONBLOCK); ret < 0)
             {
-                auto err = errno;
-                throw std::system_error(err, std::system_category(), "failed to set non-blocking on the socket");
+                throw std::system_error(errno, std::system_category(), "failed to set non-blocking on the socket");
             }
 
 
@@ -42,27 +41,28 @@ namespace aio
         }
 
         // Add constructor that matches base class
-        TCPServer(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions &sock_opts) : BaseServer(io_ctx_queue_depth, address, port, sock_opts)
+        TCPServer(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions& sock_opts) :
+            BaseServer(io_ctx_queue_depth, address, port, sock_opts)
         {
             setup();
         }
 
     public:
         TCPServer() = delete;
-        TCPServer(const TCPServer &) = delete;
+        TCPServer(const TCPServer&) = delete;
         // forbid copy assignment
-        TCPServer &operator=(const TCPServer &) = delete;
+        TCPServer& operator=(const TCPServer&) = delete;
         // forbid move assignment
-        TCPServer &operator=(TCPServer &&) = delete;
+        TCPServer& operator=(TCPServer&&) = delete;
         // forbid move constructor
-        TCPServer(TCPServer &&) = delete;
+        TCPServer(TCPServer&&) = delete;
 
         async_simple::coro::Lazy<std::expected<Stream, std::error_code>> accept()
         {
             sockaddr_storage client_addr{};
             socklen_t client_addr_len = sizeof(client_addr);
 
-            int client_fd = co_await io_context_.async_accept(server_fd_, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+            int client_fd = co_await io_context_.async_accept(server_fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
 
             if (client_fd < 0)
             {
@@ -84,7 +84,7 @@ namespace aio
             }
         }
 
-        static std::unique_ptr<TCPServer> create(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions &sock_opts)
+        static std::unique_ptr<TCPServer> create(const size_t io_ctx_queue_depth, const std::string_view address, const uint16_t port, const SocketOptions& sock_opts)
         {
             auto server = std::unique_ptr<TCPServer>(new TCPServer(io_ctx_queue_depth, address, port, sock_opts));
             return server;
@@ -125,5 +125,5 @@ namespace aio
         //     }
         // };
     };
-}  // namespace aio
+} // namespace aio
 #endif  // TCPSERVER_H
