@@ -7,15 +7,13 @@
 #include <string>
 #include <system_error>
 #include <cerrno>
-#include <cstring>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <utility>
 #include <thread>
-
-#include <ylt/easylog.h>
+#include <ylt/easylog.hpp>
 #include "io_context/uring_context.h"
 
 namespace aio
@@ -37,12 +35,12 @@ namespace aio
             {
             }
 
-            void start()
+            void start(const std::string& ip_address, const uint16_t port)
             {
-                fd_ = create_socket();
+                fd_ = create_socket(ip_address, port);
             }
 
-            static int create_socket(const std::string& ip_address, uint16_t port)
+            static int create_socket(const std::string& ip_address, const uint16_t port)
             {
                 int family;
                 sockaddr_storage addr{}; // can hold either IPv4 or IPv6
@@ -74,6 +72,8 @@ namespace aio
                                                 "invalid IP address: " + ip_address);
                     }
                 }
+
+                ELOGFMT(DEBUG, "created IP:Port endpoint: {}:{}", ip_address, port);
 
                 // Create socket
                 const int server_fd = ::socket(family, SOCK_STREAM, 0);
