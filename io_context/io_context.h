@@ -31,7 +31,7 @@ namespace aio
          * @param addrlen The length of the address.
          * @return A coroutine that yields the file descriptor of the accepted connection or the system call error code.
          */
-        virtual async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr *addr, socklen_t *addrlen) = 0;
+        virtual async_simple::coro::Lazy<int> async_accept(int server_fd, sockaddr* addr, socklen_t* addrlen) = 0;
 
         /**
          * @brief Asynchronously read data from a file descriptor.
@@ -59,7 +59,7 @@ namespace aio
          * @param offset The offset to start reading from. It should be 0 for sockets.
          * @return A coroutine that yields the number of bytes read or the system call error code.
          */
-        virtual async_simple::coro::Lazy<int> async_readv(int fd, const iovec *iov, int iovcnt, uint64_t offset) = 0;
+        virtual async_simple::coro::Lazy<int> async_readv(int fd, const iovec* iov, int iovcnt, uint64_t offset) = 0;
 
         /**
          * @brief Asynchronously write data to a file descriptor (vectorized write).
@@ -69,7 +69,7 @@ namespace aio
          * @param offset The offset to start writing from. It should be 0 for sockets.
          * @return A coroutine that yields the number of bytes written or the system call error code.
          */
-        virtual async_simple::coro::Lazy<int> async_writev(int fd, const iovec *iov, int iovcnt, uint64_t offset) = 0;
+        virtual async_simple::coro::Lazy<int> async_writev(int fd, const iovec* iov, int iovcnt, uint64_t offset) = 0;
 
         /**
          * @brief Asynchronously connect to a server.
@@ -78,7 +78,7 @@ namespace aio
          * @param addrlen The length of the address.
          * @return A coroutine that yields 0 if the connection is successful or the system call error code.
          */
-        virtual async_simple::coro::Lazy<int> async_connect(int fd, const sockaddr *addr, socklen_t addrlen) = 0;
+        virtual async_simple::coro::Lazy<int> async_connect(int fd, const sockaddr* addr, socklen_t addrlen) = 0;
 
         /**
          * @brief Shutdown the io context, making it no longer process requests.
@@ -89,6 +89,7 @@ namespace aio
             {
                 do_shutdown();
             }
+            running_.store(false);
         }
 
         bool is_shutdown() const { return !running_; }
@@ -97,6 +98,6 @@ namespace aio
         // wether the io context is running. Check to not run multiple times
         std::atomic<bool> running_{true};
     };
-}  // namespace aio
+} // namespace aio
 
 #endif  // IO_CONTEXT_H

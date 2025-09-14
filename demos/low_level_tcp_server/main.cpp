@@ -21,6 +21,6 @@ int main()
     //     std::cerr << "Error: " << ex.what() << "\n";
     // }
     aio::IoUringOptions opts{.queue_size = 16384};
-    TcpServer::run_multi_threaded("127.0.0.1", 8092, opts, 1);
+    TcpServer::run_multi_threaded("192.168.196.129", 8092, opts, 4);
     return 0;
 }
