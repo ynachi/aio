@@ -1,4 +1,3 @@
-set(NETLIB_HEADERS base_server.h tcp_server.h stream.h tcp.h)
-set(NETLIB_SRC base_server.cpp stream.cpp)
-add_library(network_lib ${NETLIB_HEADERS} ${NETLIB_SRC})
-target_link_libraries(network_lib PUBLIC io_context_lib yalantinglibs::yalantinglibs utils)
+add_library(network_lib INTERFACE)
+target_sources(io_context_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/tcp.h>)
+target_link_libraries(network_lib INTERFACE io_context_lib yalantinglibs::yalantinglibs utils)
