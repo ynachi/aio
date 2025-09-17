@@ -9,7 +9,8 @@
 #include <utility>
 
 using namespace aio;
-async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
+
+async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext& context)
 {
     try
     {
@@ -43,7 +44,7 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
             // std::cout << "Client received: " << bytes_written << "\n";
         }
     }
-    catch (const std::exception &e)
+    catch (const std::exception& e)
     {
         std::cerr << "Exception handling client: " << e.what() << "\n";
     }
@@ -53,16 +54,16 @@ async_simple::coro::Lazy<> handle_client(int client_fd, IoUringContext &context)
 }
 
 // for apache benchmark
-async_simple::coro::Lazy<> handle_http_client(int client_fd, IoUringContext &context)
+async_simple::coro::Lazy<> handle_http_client(int client_fd, IoUringContext& context)
 {
     try
     {
         char buffer[8192];
         std::string http_response =
-            "HTTP/1.1 200 OK\r\n"
-            "Content-Length: 1024\r\n"
-            "Connection: keep-alive\r\n"
-            "\r\n";
+                "HTTP/1.1 200 OK\r\n"
+                "Content-Length: 1024\r\n"
+                "Connection: keep-alive\r\n"
+                "\r\n";
 
         // Add 1024 bytes of data
         http_response.append(1024, 'X');
@@ -75,30 +76,34 @@ async_simple::coro::Lazy<> handle_http_client(int client_fd, IoUringContext &con
 
             // Look for end of HTTP headers
             bool found_end = false;
-            for (int i = 0; i < bytes_read - 3; i++) {
-                if (buffer[i] == '\r' && buffer[i+1] == '\n' &&
-                    buffer[i+2] == '\r' && buffer[i+3] == '\n') {
+            for (int i = 0; i < bytes_read - 3; i++)
+            {
+                if (buffer[i] == '\r' && buffer[i + 1] == '\n' &&
+                    buffer[i + 2] == '\r' && buffer[i + 3] == '\n')
+                {
                     found_end = true;
                     break;
-                    }
+                }
             }
 
-            if (!found_end) {
+            if (!found_end)
+            {
                 // Incomplete HTTP request, read more
                 continue;
             }
 
             // Send HTTP response
             co_await context.async_write(client_fd, std::span(http_response.c_str(),
-                                        http_response.length()), 0);
+                                                              http_response.length()), 0);
 
             // Check if connection is keep-alive
-            if (strstr(buffer, "Connection: close") != nullptr) {
+            if (strstr(buffer, "Connection: close") != nullptr)
+            {
                 break;
             }
         }
     }
-    catch (const std::exception &e)
+    catch (const std::exception& e)
     {
         std::cerr << "Exception handling HTTP client: " << e.what() << "\n";
     }
@@ -126,7 +131,8 @@ void set_fd_server_options(const int fd)
     }
 }
 
-TcpServer::TcpServer(std::string ip_address, const uint16_t port, const IoUringOptions& opts) : io_uring_ctx(opts), ip_address_(std::move(ip_address)), port_(port)
+TcpServer::TcpServer(std::string ip_address, const uint16_t port, const IoUringOptions& opts) :
+    io_uring_ctx(opts), ip_address_(std::move(ip_address)), port_(port)
 {
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (server_fd < 0)
@@ -144,14 +150,14 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port, const IoUringO
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = INADDR_ANY;
 
-    if (bind(server_fd, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
+    if (bind(server_fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) < 0)
     {
         // spdlog::error("failed to bind socket: {}", strerror(-errno));
         throw std::system_error(errno, std::system_category(), "bind failed");
     }
     // spdlog::debug("bound socket to {}:{}", ip_address, port);
 
-    if (listen(server_fd, static_cast<int>(io_uring_ctx.get_queue_depth())) < 0)
+    if (listen(server_fd, 1024) < 0)
     {
         // spdlog::error("failed to listen on socket: {}", strerror(-errno));
         throw std::system_error(errno, std::system_category(), "listen failed");
@@ -163,7 +169,7 @@ TcpServer::TcpServer(std::string ip_address, const uint16_t port, const IoUringO
 TcpServer::~TcpServer()
 {
     running_ = false;
-    io_uring_ctx.shutdown();
+    io_uring_ctx.request_stop();
     close(server_fd);
 }
 
@@ -174,7 +180,7 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections()
     {
         sockaddr_in client_addr{};
         socklen_t client_addr_len = sizeof(client_addr);
-        int client_fd = co_await io_uring_ctx.async_accept(server_fd, reinterpret_cast<sockaddr *>(&client_addr), &client_addr_len);
+        int client_fd = co_await io_uring_ctx.async_accept(server_fd, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
         // spdlog::debug("got a new connection fd = {}", client_fd);
         if (client_fd < 0)
         {
@@ -183,14 +189,18 @@ async_simple::coro::Lazy<> TcpServer::async_accept_connections()
         }
         // process client here
         // spdlog::debug("got a new connection fd = {}", client_fd);
-        handle_http_client(client_fd, io_uring_ctx).start([](auto &&) {});
+        handle_http_client(client_fd, io_uring_ctx).start([](auto&&)
+        {
+        });
     }
 }
 
 void TcpServer::run()
 {
     // spdlog::debug("starting server");
-    async_accept_connections().start([](auto &&) {});
+    async_accept_connections().start([](auto&&)
+    {
+    });
 
     io_uring_ctx.run();
 }
@@ -204,7 +214,7 @@ void TcpServer::worker(std::string host, const uint16_t port, const IoUringOptio
         TcpServer server(host, port, opts);
         server.run();
     }
-    catch (const std::exception &ex)
+    catch (const std::exception& ex)
     {
         // spdlog::error("worker thread error: {}", ex.what());
         std::abort();

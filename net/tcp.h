@@ -43,16 +43,16 @@ namespace aio
 
         async_simple::coro::Lazy<> async_accept_connections(const std::stop_token& stop_token, IoUringContext& io_context, uint worker_id)
         {
+            ELOG_DEBUG << "server accepting connections on worker " << worker_id;
             while (!stop_token.stop_requested())
             {
-                ELOG_DEBUG << "server accepting connections";
                 sockaddr_in client_addr{};
                 socklen_t client_addr_len = sizeof(client_addr);
                 auto client_fd = co_await io_context.async_accept(server_fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
 
                 if (client_fd < 0)
                 {
-                    if (const int err = errno; err == EAGAIN || err == ECONNABORTED || err == EINTR)
+                    if (const int err = -client_fd; err == EAGAIN || err == ECONNABORTED || err == EINTR)
                     {
                         ELOGFMT(WARN, "transient accept error: {}", strerror(err));
                         continue; // Try again
@@ -78,12 +78,13 @@ namespace aio
                     }
                 });
             }
+            ELOG_DEBUG << "server stopped accepting connections on worker" << worker_id;
         }
 
         void loop_(const std::stop_token& stop_token, IoUringContext& io_context, uint worker_id)
         {
             ELOGFMT(DEBUG, "starting server loop for worker {}", worker_id);
-            async_accept_connections(stop_token, io_context, worker_id).start([](async_simple::Try<void> result)
+            async_accept_connections(stop_token, io_context, worker_id).start([worker_id, &io_context](async_simple::Try<void> result)
             {
                 if (result.hasError())
                 {
@@ -91,6 +92,8 @@ namespace aio
                     // this exception is fatal, shutdown the server
                     // ELOGFMT(INFO, "the previous exception caused the worker {} to shutdown ", worker_id_);
                 }
+                ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
+                io_context.request_stop();
             });
 
             // TODO: pass the stop token here too
@@ -209,19 +212,19 @@ namespace aio
         void stop()
         {
             ELOG_INFO << "stopping server";
-            for (uint worker_id = 0; worker_id < num_workers_; ++worker_id)
-            {
-                ELOGFMT(DEBUG, "stopping worker {}", worker_id);
-                workers_[worker_id].request_stop();
-            }
-            workers_.clear();
-            ELOG_INFO << "server stopped";
             if (server_fd_ != -1)
             {
                 ELOG_DEBUG << "closing server fd in stop()";
                 close(server_fd_);
                 server_fd_ = -1;
             }
+
+            for (uint worker_id = 0; worker_id < num_workers_; ++worker_id)
+            {
+                ELOGFMT(DEBUG, "stopping worker {}", worker_id);
+                workers_[worker_id].request_stop();
+            }
+            ELOG_INFO << "server stopped";
         }
 
         ~IoUringTCPServer()

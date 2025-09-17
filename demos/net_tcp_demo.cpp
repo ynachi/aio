@@ -67,7 +67,7 @@ async_simple::coro::Lazy<> handle_http_client(int client_fd, IoUringContext& con
 
 int main()
 {
-    easylog::init_log(easylog::Severity::INFO);
+    easylog::init_log(easylog::Severity::DEBUG);
     constexpr IoUringOptions opts{.queue_size = 16384, .processing_batch_size = 256};
 
     IoUringTCPServer server("192.168.196.129", 8092, opts, handle_http_client);
@@ -78,6 +78,8 @@ int main()
     std::cout << "Server running. Press Enter to stop..." << std::endl;
     std::cin.get(); // Blocks until user presses Enter
     server.stop();
+
+    ELOG_DEBUG << "Server stopped from main";
 
     return 0;
 }
