@@ -327,9 +327,9 @@ namespace aio
             co_return co_await coro_connect(client_fd, addr, addrlen);
         }
 
-        void run()
+        void run(const std::stop_token& st)
         {
-            while (!stop_requested())
+            while (!stop_requested() && !st.stop_requested())
             {
                 // submit
                 auto ret = submit_sqes();

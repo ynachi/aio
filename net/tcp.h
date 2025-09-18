@@ -33,7 +33,31 @@ namespace aio
     template<ConnexionHandler Handler>
     class IoUringTCPServer
     {
-        std::vector<std::jthread> workers_;
+        struct Worker
+        {
+            const int server_fd;
+            const uint worker_id;
+            Handler& handler;
+            IoUringOptions& options;
+            std::jthread thread;
+
+            Worker(IoUringOptions& opts, const int fd, const uint id, Handler& h) :
+                server_fd(fd),
+                worker_id(id),
+                handler(h),
+                options(opts)
+
+            {
+                thread = std::jthread([this](const std::stop_token& st)
+                {
+                    auto ctx = IoUringContext(options);
+                    loop_(st, server_fd, ctx, worker_id, handler);
+                });
+            }
+        };
+
+
+        std::vector<std::unique_ptr<Worker>> workers_;
         int server_fd_{-1};
         IoUringOptions io_uring_options_;
         Handler handler_;
@@ -41,14 +65,15 @@ namespace aio
         uint16_t port_;
         uint num_workers_;
 
-        async_simple::coro::Lazy<> async_accept_connections(const std::stop_token& stop_token, IoUringContext& io_context, uint worker_id)
+
+        static async_simple::coro::Lazy<> async_accept_connections(const std::stop_token& stop_token, const int server_fd, IoUringContext& io_context, const uint worker_id, Handler& handler)
         {
             ELOG_DEBUG << "server accepting connections on worker " << worker_id;
             while (!stop_token.stop_requested())
             {
                 sockaddr_in client_addr{};
                 socklen_t client_addr_len = sizeof(client_addr);
-                auto client_fd = co_await io_context.async_accept(server_fd_, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
+                auto client_fd = co_await io_context.async_accept(server_fd, reinterpret_cast<sockaddr*>(&client_addr), &client_addr_len);
 
                 if (client_fd < 0)
                 {
@@ -69,7 +94,7 @@ namespace aio
                         inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_fd);
 
                 // Use Try<> to not let a bug in the handler break the server
-                this->handler_(client_fd, io_context).start([=](async_simple::Try<void> result)
+                handler(client_fd, io_context).start([=](async_simple::Try<void> result)
                 {
                     if (result.hasError())
                     {
@@ -81,11 +106,12 @@ namespace aio
             ELOG_DEBUG << "server stopped accepting connections on worker" << worker_id;
         }
 
-        void loop_(const std::stop_token& stop_token, IoUringContext& io_context, uint worker_id)
+        static void loop_(const std::stop_token& stop_token, const int server_fd, IoUringContext& io_context, uint worker_id, Handler& handler)
         {
             ELOGFMT(DEBUG, "starting server loop for worker {}", worker_id);
-            async_accept_connections(stop_token, io_context, worker_id).start([worker_id, &io_context](async_simple::Try<void> result)
+            async_accept_connections(stop_token, server_fd, io_context, worker_id, handler).start([worker_id, &io_context](async_simple::Try<void> result)
             {
+                ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
                 if (result.hasError())
                 {
                     // ELOGFMT(ERROR, "error accepting connections, exception = {}", result.getException());
@@ -97,7 +123,7 @@ namespace aio
             });
 
             // TODO: pass the stop token here too
-            io_context.run();
+            io_context.run(stop_token);
         }
 
         static int create_socket(std::string_view ip_address, const uint16_t port)
@@ -198,14 +224,7 @@ namespace aio
         {
             for (uint worker_id = 0; worker_id < num_workers_; ++worker_id)
             {
-                workers_.emplace_back(
-                        std::jthread([this, worker_id](const std::stop_token& st)
-                        {
-                            ELOGFMT(INFO, "starting worker {}", worker_id);
-                            IoUringContext io_context(io_uring_options_);
-                            loop_(st, io_context, worker_id);
-                        })
-                        );
+                workers_.emplace_back(std::make_unique<Worker>(io_uring_options_, server_fd_, worker_id, handler_));
             }
         }
 
@@ -222,7 +241,7 @@ namespace aio
             for (uint worker_id = 0; worker_id < num_workers_; ++worker_id)
             {
                 ELOGFMT(DEBUG, "stopping worker {}", worker_id);
-                workers_[worker_id].request_stop();
+                workers_[worker_id]->thread.request_stop();
             }
             ELOG_INFO << "server stopped";
         }

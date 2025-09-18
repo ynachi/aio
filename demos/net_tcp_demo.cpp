@@ -67,10 +67,10 @@ async_simple::coro::Lazy<> handle_http_client(int client_fd, IoUringContext& con
 
 int main()
 {
-    easylog::init_log(easylog::Severity::DEBUG);
+    easylog::init_log(easylog::Severity::INFO);
     constexpr IoUringOptions opts{.queue_size = 16384, .processing_batch_size = 256};
 
-    IoUringTCPServer server("192.168.196.129", 8092, opts, handle_http_client);
+    IoUringTCPServer server("192.168.196.129", 8092, opts, handle_http_client, 3);
     server.start();
 
     // Since your workers are jthreads, they'll auto-join on destruction
