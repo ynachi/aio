@@ -281,16 +281,6 @@ namespace aio
         {
             ELOG_DEBUG << "requesting stop";
             stop_requested_.test_and_set(std::memory_order_relaxed);
-
-            // Submit a NOP operation with stop sentinel to wake up the event loop
-            io_uring_sqe* sqe = io_uring_get_sqe(&uring_);
-            if (sqe)
-            {
-                io_uring_prep_nop(sqe);
-                io_uring_sqe_set_data(sqe, UringStopSentinel);
-                io_uring_submit(&uring_);
-                ELOG_DEBUG << "submitted stop NOP to wake event loop";
-            }
         }
 
         [[nodiscard]] bool stop_requested() const noexcept
@@ -332,21 +322,41 @@ namespace aio
 
         void run()
         {
+            ELOG_DEBUG << "Starting io_uring event loop";
+
             while (!stop_requested())
             {
-                // submit
+                // Submit pending operations
                 auto ret = submit_sqes();
                 check_syscall_return(ret);
                 ELOGFMT(DEBUG, "submitted {} io operations", ret);
 
-                // 2. Wait for CQEs
+                // Wait for CQEs with a timeout so we can periodically check stop flag
                 io_uring_cqe* cqe = nullptr;
-                int wait_result = io_uring_wait_cqe(&uring_, &cqe);
-                check_syscall_return(wait_result);
 
-                // process cqes
+                // 100ms timeout - balance between responsiveness and CPU usage
+                __kernel_timespec timeout = {.tv_sec = 0, .tv_nsec = 100000000};
+                const int wait_result = io_uring_wait_cqe_timeout(&uring_, &cqe, &timeout);
+
+                // Handle timeout - this is normal and expected
+                if (wait_result == -ETIME || wait_result == -ETIMEDOUT)
+                {
+                    ELOG_DEBUG << "io_uring wait timeout - checking stop flag";
+                    continue;
+                }
+
+                // Handle other errors (but not timeout)
+                if (wait_result < 0)
+                {
+                    check_syscall_return(wait_result);
+                    continue;
+                }
+
+                // Process completions we got
                 process_completions();
             }
+
+            ELOG_DEBUG << "io_uring event loop exited - stop was requested";
         }
     };
 } // namespace aio

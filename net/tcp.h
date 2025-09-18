@@ -252,19 +252,21 @@ namespace aio
         {
             ELOG_INFO << "stopping server";
 
-            // First, request stop on all workers to set their stop flags
+            // First, request stop on all workers
             for (auto& w: workers_)
             {
                 ELOGFMT(DEBUG, "requesting stop for worker {}", w->worker_id);
                 if (w->io_context_)
                 {
                     w->io_context_->request_stop();
-                    // Optional: also wake the event loop more aggressively
-                    // w->io_context_->wake_event_loop();
                 }
             }
 
-            // Then close the server socket to unblock accept operations
+            // Small delay to let workers see the stop flag, this delay should be
+            // less than the timeout of io_uring cqe wait
+            std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+            // Then close the server socket
             if (server_fd_ != -1)
             {
                 ELOG_DEBUG << "closing server fd in stop()";
@@ -272,14 +274,12 @@ namespace aio
                 server_fd_ = -1;
             }
 
-            // Request stop on threads (this will make jthread call request_stop on thread token)
+            // Request stop on threads
             for (auto& w: workers_)
             {
                 ELOGFMT(DEBUG, "stopping worker thread {}", w->worker_id);
                 w->thread.request_stop();
             }
-
-            // The jthread destructor will automatically join when workers_ is destroyed
         }
 
         ~IoUringTCPServer()
