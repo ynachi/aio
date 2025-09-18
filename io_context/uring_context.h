@@ -14,6 +14,7 @@
 #include <liburing/io_uring.h>
 #include <sys/socket.h>
 #include <sys/utsname.h>
+#include <sys/eventfd.h>
 #include <ylt/easylog.hpp>
 
 namespace aio
@@ -40,6 +41,10 @@ namespace aio
         std::vector<IoAwaitable*> ready_coroutines_;
         io_uring_cqe** cqes_ = nullptr;
         std::atomic_flag stop_requested_ = ATOMIC_FLAG_INIT;
+        // eventfd used to submit stop
+        int stop_eventfd_ = -1;
+        uint64_t stop_event_buf_ = 0;
+
 
         struct IoAwaitable
         {
@@ -266,6 +271,12 @@ namespace aio
 
             // reserve ready coroutines vector
             ready_coroutines_.reserve(opts_.queue_size);
+
+            stop_eventfd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+            if (stop_eventfd_ < 0)
+            {
+                throw std::system_error(errno, std::system_category(), "eventfd failed");
+            }
         }
 
         ~IoUringContext()
@@ -274,23 +285,42 @@ namespace aio
             // process pending completions before exiting
             shutdown_cleanup();
             ELOG_DEBUG << "IoUringContext::deinit io_uring exited";
+
+            if (stop_eventfd_ >= 0)
+            {
+                close(stop_eventfd_);
+                stop_eventfd_ = -1;
+            }
         }
 
-        void request_stop() noexcept
+        void monitor_eventfd()
         {
-            stop_requested_.test_and_set(std::memory_order_relaxed);
+            auto self = this;
+            auto coro = [self]() -> async_simple::coro::Lazy<>
+            {
+                uint64_t v = 0;
+                co_await self->async_read(self->stop_eventfd_, std::span(reinterpret_cast<char*>(&v), sizeof(v)), 0);
+                self->stop_requested_.test_and_set(std::memory_order_relaxed);
+                co_return;
+            };
 
-            io_uring_sqe* sqe = get_sqe();
-            io_uring_prep_nop(sqe);
-            io_uring_sqe_set_data(sqe, UringStopSentinel);
-
-            // ensure nop is sent promptly
-            submit_sqes();
-
-            ELOG_DEBUG << "stop signal issued (submitted stop nop)";
+            coro().start([](async_simple::Try<void>)
+            {
+            });
         }
 
-        bool stop_requested() const noexcept
+        void request_stop() const noexcept
+        {
+            ELOG_DEBUG << "received stop signal via eventfd";
+            if (stop_eventfd_ < 0) return;
+            const uint64_t v = 1;
+            const ssize_t ret = write(stop_eventfd_, &v, sizeof(v));
+            // best effort
+            (void) ret;
+            ELOG_DEBUG << "wrote to eventfd to wake owner";
+        }
+
+        [[nodiscard]] bool stop_requested() const noexcept
         {
             return stop_requested_.test(std::memory_order_relaxed);
         }
@@ -327,9 +357,9 @@ namespace aio
             co_return co_await coro_connect(client_fd, addr, addrlen);
         }
 
-        void run(const std::stop_token& st)
+        void run()
         {
-            while (!stop_requested() && !st.stop_requested())
+            while (!stop_requested())
             {
                 // submit
                 auto ret = submit_sqes();

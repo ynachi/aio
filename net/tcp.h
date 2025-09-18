@@ -39,19 +39,21 @@ namespace aio
             const uint worker_id;
             Handler& handler;
             IoUringOptions& options;
+            std::unique_ptr<IoUringContext> io_context_;
             std::jthread thread;
 
             Worker(IoUringOptions& opts, const int fd, const uint id, Handler& h) :
                 server_fd(fd),
                 worker_id(id),
                 handler(h),
+                io_context_(nullptr),
                 options(opts)
 
             {
                 thread = std::jthread([this](const std::stop_token& st)
                 {
-                    auto ctx = IoUringContext(options);
-                    loop_(st, server_fd, ctx, worker_id, handler);
+                    io_context_ = std::make_unique<IoUringContext>(options);
+                    loop_(st, server_fd, *io_context_, worker_id, handler);
                 });
             }
         };
@@ -66,7 +68,13 @@ namespace aio
         uint num_workers_;
 
 
-        static async_simple::coro::Lazy<> async_accept_connections(const std::stop_token& stop_token, const int server_fd, IoUringContext& io_context, const uint worker_id, Handler& handler)
+        static async_simple::coro::Lazy<> async_accept_connections(
+                const std::stop_token& stop_token,
+                const int server_fd,
+                IoUringContext& io_context,
+                const uint worker_id,
+                Handler& handler
+                )
         {
             ELOG_DEBUG << "server accepting connections on worker " << worker_id;
             while (!stop_token.stop_requested())
@@ -109,21 +117,30 @@ namespace aio
         static void loop_(const std::stop_token& stop_token, const int server_fd, IoUringContext& io_context, uint worker_id, Handler& handler)
         {
             ELOGFMT(DEBUG, "starting server loop for worker {}", worker_id);
-            async_accept_connections(stop_token, server_fd, io_context, worker_id, handler).start([worker_id, &io_context](async_simple::Try<void> result)
-            {
-                ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
-                if (result.hasError())
-                {
-                    // ELOGFMT(ERROR, "error accepting connections, exception = {}", result.getException());
-                    // this exception is fatal, shutdown the server
-                    // ELOGFMT(INFO, "the previous exception caused the worker {} to shutdown ", worker_id_);
-                }
-                ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
-                io_context.request_stop();
-            });
 
-            // TODO: pass the stop token here too
-            io_context.run(stop_token);
+            // monitor eventfd for shutdown signals
+            io_context.monitor_eventfd();
+
+            async_accept_connections(
+                            stop_token,
+                            server_fd,
+                            io_context,
+                            worker_id,
+                            handler)
+                    .start([worker_id, &io_context](const async_simple::Try<void>& result)
+                    {
+                        ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
+                        if (result.hasError())
+                        {
+                            // ELOGFMT(ERROR, "error accepting connections, exception = {}", result.getException());
+                            // this exception is fatal, shutdown the server
+                            // ELOGFMT(INFO, "the previous exception caused the worker {} to shutdown", worker_id_);
+                        }
+                        ELOGFMT(DEBUG, "server loop for worker {} stopped", worker_id);
+                        io_context.request_stop();
+                    });
+
+            io_context.run();
         }
 
         static int create_socket(std::string_view ip_address, const uint16_t port)
@@ -208,14 +225,20 @@ namespace aio
             }
         }
 
-        static int default_worker_count()
+        static uint default_worker_count()
         {
             return std::jthread::hardware_concurrency();
         }
 
     public:
-        IoUringTCPServer(std::string_view ip_address, const uint16_t port, const IoUringOptions& uring_options, Handler handler, const uint num_workers = default_worker_count()) :
-            num_workers_(num_workers), ip_address_(ip_address), port_(port), io_uring_options_(uring_options), handler_(std::move(handler))
+        IoUringTCPServer(
+                std::string_view ip_address,
+                const uint16_t port,
+                const IoUringOptions& uring_options,
+                Handler handler,
+                const uint num_workers = default_worker_count()
+                ) :
+            io_uring_options_(uring_options), handler_(std::move(handler)), ip_address_(ip_address), port_(port), num_workers_(num_workers)
         {
             server_fd_ = create_socket(ip_address, port);
         }
@@ -231,6 +254,20 @@ namespace aio
         void stop()
         {
             ELOG_INFO << "stopping server";
+
+            // First, request stop on all workers to set their stop flags
+            for (auto& w: workers_)
+            {
+                ELOGFMT(DEBUG, "requesting stop for worker {}", w->worker_id);
+                if (w->io_context_)
+                {
+                    w->io_context_->request_stop();
+                    // Optional: also wake the event loop more aggressively
+                    // w->io_context_->wake_event_loop();
+                }
+            }
+
+            // Then close the server socket to unblock accept operations
             if (server_fd_ != -1)
             {
                 ELOG_DEBUG << "closing server fd in stop()";
@@ -238,12 +275,14 @@ namespace aio
                 server_fd_ = -1;
             }
 
-            for (uint worker_id = 0; worker_id < num_workers_; ++worker_id)
+            // Request stop on threads (this will make jthread call request_stop on thread token)
+            for (auto& w: workers_)
             {
-                ELOGFMT(DEBUG, "stopping worker {}", worker_id);
-                workers_[worker_id]->thread.request_stop();
+                ELOGFMT(DEBUG, "stopping worker thread {}", w->worker_id);
+                w->thread.request_stop();
             }
-            ELOG_INFO << "server stopped";
+
+            // The jthread destructor will automatically join when workers_ is destroyed
         }
 
         ~IoUringTCPServer()
