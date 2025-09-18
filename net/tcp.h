@@ -118,9 +118,6 @@ namespace aio
         {
             ELOGFMT(DEBUG, "starting server loop for worker {}", worker_id);
 
-            // monitor eventfd for shutdown signals
-            io_context.monitor_eventfd();
-
             async_accept_connections(
                             stop_token,
                             server_fd,

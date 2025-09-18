@@ -41,10 +41,6 @@ namespace aio
         std::vector<IoAwaitable*> ready_coroutines_;
         io_uring_cqe** cqes_ = nullptr;
         std::atomic_flag stop_requested_ = ATOMIC_FLAG_INIT;
-        // eventfd used to submit stop
-        int stop_eventfd_ = -1;
-        uint64_t stop_event_buf_ = 0;
-
 
         struct IoAwaitable
         {
@@ -271,12 +267,6 @@ namespace aio
 
             // reserve ready coroutines vector
             ready_coroutines_.reserve(opts_.queue_size);
-
-            stop_eventfd_ = eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
-            if (stop_eventfd_ < 0)
-            {
-                throw std::system_error(errno, std::system_category(), "eventfd failed");
-            }
         }
 
         ~IoUringContext()
@@ -285,39 +275,22 @@ namespace aio
             // process pending completions before exiting
             shutdown_cleanup();
             ELOG_DEBUG << "IoUringContext::deinit io_uring exited";
+        }
 
-            if (stop_eventfd_ >= 0)
+        void request_stop() noexcept
+        {
+            ELOG_DEBUG << "requesting stop";
+            stop_requested_.test_and_set(std::memory_order_relaxed);
+
+            // Submit a NOP operation with stop sentinel to wake up the event loop
+            io_uring_sqe* sqe = io_uring_get_sqe(&uring_);
+            if (sqe)
             {
-                close(stop_eventfd_);
-                stop_eventfd_ = -1;
+                io_uring_prep_nop(sqe);
+                io_uring_sqe_set_data(sqe, UringStopSentinel);
+                io_uring_submit(&uring_);
+                ELOG_DEBUG << "submitted stop NOP to wake event loop";
             }
-        }
-
-        void monitor_eventfd()
-        {
-            auto self = this;
-            auto coro = [self]() -> async_simple::coro::Lazy<>
-            {
-                uint64_t v = 0;
-                co_await self->async_read(self->stop_eventfd_, std::span(reinterpret_cast<char*>(&v), sizeof(v)), 0);
-                self->stop_requested_.test_and_set(std::memory_order_relaxed);
-                co_return;
-            };
-
-            coro().start([](async_simple::Try<void>)
-            {
-            });
-        }
-
-        void request_stop() const noexcept
-        {
-            ELOG_DEBUG << "received stop signal via eventfd";
-            if (stop_eventfd_ < 0) return;
-            const uint64_t v = 1;
-            const ssize_t ret = write(stop_eventfd_, &v, sizeof(v));
-            // best effort
-            (void) ret;
-            ELOG_DEBUG << "wrote to eventfd to wake owner";
         }
 
         [[nodiscard]] bool stop_requested() const noexcept
