@@ -14,7 +14,7 @@ async_simple::coro::Lazy<int> CountLineChar(std::span<const char> view, char c) 
 
 // File IO demo
 // count the number of characters in a file and the occurrences of a character
-async_simple::coro::Lazy<std::pair<int64_t, int64_t>> char_count(IoUringContext<false> &context, std::string file_path, bool &running, const char c)
+async_simple::coro::Lazy<std::pair<int64_t, int64_t>> char_count(aio::IoUringContext<false> &context, std::string file_path, bool &running, const char c)
 {
     namespace fs = std::filesystem;
     fs::path file(file_path);
