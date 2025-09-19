@@ -183,6 +183,11 @@ namespace aio
             io_uring_cq_advance(&uring_, count);
 
             // resume all available
+            resume_ready_coroutines();
+        }
+
+        void resume_ready_coroutines()
+        {
             for (const auto* op: ready_coroutines_)
             {
                 op->handle_.resume();
