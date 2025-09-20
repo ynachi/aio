@@ -2,7 +2,9 @@
 pkg_check_modules(LIBURING REQUIRED liburing)
 include_directories(${CMAKE_SOURCE_DIR}/io ${CMAKE_SOURCE_DIR}/demo/server)
 
-add_library(io_context_lib INTERFACE)
-target_sources(io_context_lib INTERFACE $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/uring_context.h>)
-target_link_libraries(io_context_lib INTERFACE ${LIBURING_LIBRARIES} yalantinglibs::yalantinglibs)
+set(IO_HEADER_FILES context.h)
+set(IO_SRC_FILES context.cpp)
+
+add_library(io ${IO_HEADER_FILES} ${IO_SRC_FILES})
+target_link_libraries(io PUBLIC ${LIBURING_LIBRARIES} yalantinglibs::yalantinglibs)
 

@@ -49,7 +49,7 @@ namespace aio
             std::coroutine_handle<> handle_ = nullptr;
             int result_{-1};
 
-            bool await_ready() const noexcept { return false; }
+            static bool await_ready() noexcept { return false; }
 
             void await_suspend(std::coroutine_handle<> handle) noexcept
             {
@@ -71,7 +71,7 @@ namespace aio
                 // do not submit the here, we do batch submission
             }
 
-            int await_resume() noexcept
+            [[nodiscard]] int await_resume() const noexcept
             {
                 return result_;
             };
@@ -123,7 +123,10 @@ namespace aio
         {
             return IoAwaitable{
                     .sqe_ = get_sqe(),
-                    .prep_fn_ = [client_fd, buf, offset](io_uring_sqe* sqe) { io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset); },
+                    .prep_fn_ = [client_fd, buf, offset](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_read(sqe, client_fd, buf.data(), buf.size(), offset);
+                    },
             };
         }
 
@@ -131,7 +134,10 @@ namespace aio
         {
             return IoAwaitable{
                     .sqe_ = get_sqe(),
-                    .prep_fn_ = [client_fd, buf, offset](io_uring_sqe* sqe) { io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset); },
+                    .prep_fn_ = [client_fd, buf, offset](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_write(sqe, client_fd, buf.data(), buf.size(), offset);
+                    },
             };
         }
 
@@ -139,7 +145,10 @@ namespace aio
         {
             return IoAwaitable{
                     .sqe_ = get_sqe(),
-                    .prep_fn_ = [client_fd, iov, iovcnt, offset](io_uring_sqe* sqe) { io_uring_prep_readv(sqe, client_fd, iov, iovcnt, offset); },
+                    .prep_fn_ = [client_fd, iov, iovcnt, offset](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_readv(sqe, client_fd, iov, iovcnt, offset);
+                    },
             };
         }
 
@@ -147,7 +156,10 @@ namespace aio
         {
             return IoAwaitable{
                     .sqe_ = get_sqe(),
-                    .prep_fn_ = [client_fd, iov, iovcnt, offset](io_uring_sqe* sqe) { io_uring_prep_writev(sqe, client_fd, iov, iovcnt, offset); },
+                    .prep_fn_ = [client_fd, iov, iovcnt, offset](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_writev(sqe, client_fd, iov, iovcnt, offset);
+                    },
             };
         }
 
@@ -155,7 +167,40 @@ namespace aio
         {
             return IoAwaitable{
                     .sqe_ = get_sqe(),
-                    .prep_fn_ = [client_fd, addr, addrlen](io_uring_sqe* sqe) { io_uring_prep_connect(sqe, client_fd, addr, addrlen); },
+                    .prep_fn_ = [client_fd, addr, addrlen](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_connect(sqe, client_fd, addr, addrlen);
+                    },
+            };
+        }
+
+        IoAwaitable coro_openat(int dfd, int flags, std::string_view path, mode_t mode) noexcept
+        {
+            return IoAwaitable{
+                    .sqe_ = get_sqe(),
+                    .prep_fn_ = [dfd, flags, path, mode](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_openat(sqe, dfd, path.data(), flags, mode);
+                    },
+            };
+        }
+
+        IoAwaitable coro_fallocate(int fd, int mode, off_t offset, off_t len) noexcept
+        {
+            return IoAwaitable{
+                    .sqe_ = get_sqe(),
+                    .prep_fn_ = [fd, mode, offset, len](io_uring_sqe* sqe)
+                    {
+                        io_uring_prep_fallocate(sqe, fd, mode, offset, len);
+                    },
+            };
+        }
+
+        IoAwaitable coro_close(int fd) noexcept
+        {
+            return IoAwaitable{
+                    .sqe_ = get_sqe(),
+                    .prep_fn_ = [fd](io_uring_sqe* sqe) { io_uring_prep_close(sqe, fd); },
             };
         }
 
