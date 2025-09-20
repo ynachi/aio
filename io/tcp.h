@@ -54,8 +54,31 @@ namespace aio
                 thread = std::jthread([this](const std::stop_token& st)
                 {
                     io_context_ = std::make_unique<IoUringContext>(options);
+
+                    // CPU Pinning
+                    cpu_set_t cpuset;
+                    CPU_ZERO(&cpuset);
+                    int cpu = worker_id % std::jthread::hardware_concurrency();
+                    CPU_SET(cpu, &cpuset);
+                    const int rc = pthread_setaffinity_np(thread.native_handle(),
+                                                    sizeof(cpu_set_t),
+                                                    &cpuset);
+                    if (rc != 0) {
+                        ELOGFMT(ERROR, "Failed to set CPU affinity for worker {}: {}", worker_id, strerror(rc));
+                    } else {
+                        ELOGFMT(DEBUG, "Pinned worker {} to CPU {}", worker_id, worker_id);
+                    }
+
+                    // iowq affinity
+                    if (const int ret = io_uring_register_iowq_aff(io_context_->get_ring(), 1, &cpuset)) {
+                        ELOGFMT(ERROR, "Failed to set io-wq affinity to CPU {}: {}", cpu, strerror(-ret));
+                    } else {
+                        ELOGFMT(DEBUG, "io-wq threads pinned to CPU {}", cpu);
+                    }
+
                     loop_(st, server_fd, *io_context_, worker_id, handler);
                 });
+
             }
         };
 

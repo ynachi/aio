@@ -330,6 +330,11 @@ namespace aio
          * Runs the IO Uring context event loop
          */
         void run();
+
+        io_uring* get_ring()
+        {
+            return &uring_;
+        }
     };
 } // namespace aio
 #endif  // URING_CONTEXT_H
