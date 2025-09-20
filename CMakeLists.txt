@@ -26,10 +26,9 @@ add_subdirectory(core)
 
 find_package(PkgConfig REQUIRED)
 
-# for internal io_context library
+# for internal io library
 add_subdirectory(io)
-# for network library
-add_subdirectory(net)
+
 # for demos
 add_subdirectory(demos)
 

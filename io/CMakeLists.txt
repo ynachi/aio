@@ -2,7 +2,7 @@
 pkg_check_modules(LIBURING REQUIRED liburing)
 include_directories(${CMAKE_SOURCE_DIR}/io ${CMAKE_SOURCE_DIR}/demo/server)
 
-set(IO_HEADER_FILES context.h)
+set(IO_HEADER_FILES context.h tcp.h)
 set(IO_SRC_FILES context.cpp)
 
 add_library(io ${IO_HEADER_FILES} ${IO_SRC_FILES})
