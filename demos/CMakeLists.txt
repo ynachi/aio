@@ -7,9 +7,6 @@ target_link_libraries(bench_server PRIVATE yalantinglibs::yalantinglibs)
 add_executable(char_count_demo char_count_low.cpp)
 target_link_libraries(char_count_demo PRIVATE io_context_lib yalantinglibs::yalantinglibs)
 
-add_executable(srv202 tcp_server_202.cpp)
-target_link_libraries(srv202 PRIVATE io_context_lib network_lib yalantinglibs::yalantinglibs)
-
 add_executable(net_tcp_demo net_tcp_demo.cpp)
 target_link_libraries(net_tcp_demo PRIVATE io_context_lib network_lib yalantinglibs::yalantinglibs)
 
